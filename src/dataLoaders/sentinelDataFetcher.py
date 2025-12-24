@@ -1,9 +1,37 @@
-"""
-Defines functions to fetch and preprocess Sentinel satellite data for analysis.
+import pystac_client
+import planetary_computer
+import stackstac
+import rasterio
 
-sentinelDataFetcher(startDate, endDate, region) --> Fetches sentinel data of the specified region around the before and after dates.
-                                                    Uses microsoft STAC API to fetch the data.
-                                                    Filters images based on cloud coverage (least cloudy images are selected).
-                                                    Returns a list of image URLs for further processing.
+URL = "https://planetarycomputer.microsoft.com/api/stac/v1"
+SENTINEL_2A = "sentinel-2-l2a"
 
-"""
+def pcAuthenticator(url=URL):
+    """Used to authenticate and access the planetary computer STAC API."""
+    catalog = pystac_client.Client.open(
+        url,
+        modifier=planetary_computer.sign_inplace
+    )
+    return catalog
+
+def searchSTAC(timeRange, bbox, catalog = pcAuthenticator(), collection = SENTINEL_2A, cloudCoverThreshold=20):
+    """Searches the STAC API for Sentinel-2 L2A images within the specified time range and bounding box.
+    
+    Args:
+        catalog: The STAC catalog to search.
+        timeRange: A tuple of start and end dates in 'YYYY-MM-DD' format.
+        bbox: A list defining the bounding box [minLon, minLat, maxLon, maxLat].
+        cloudCoverThreshold: Maximum acceptable cloud cover percentage.
+
+        returns: The STAC item with the least cloud cover within the specified parameters.
+    """
+    search = catalog.search(collections = [collection], datetime = timeRange, bbox = bbox, query = {"eo:cloud_cover": {"lt": cloudCoverThreshold}})
+
+    items = search.get_all_items()
+
+    bestItem = min(items, key=lambda item: item.properties["eo:cloud_cover"])
+    #dict_keys(['type', 'stac_version', 'stac_extensions', 'id', 'geometry', 'bbox', 'properties', 'links', 'assets', 'collection'])
+
+    return bestItem
+
+
