@@ -5,6 +5,7 @@ import rasterio
 
 URL = "https://planetarycomputer.microsoft.com/api/stac/v1"
 SENTINEL_2A = "sentinel-2-l2a"
+PRITHVI_BANDS = ["B02", "B03", "B04", "B8A", "B11", "B12"]
 
 def pcAuthenticator(url=URL):
     """Used to authenticate and access the planetary computer STAC API."""
@@ -34,14 +35,15 @@ def searchSTAC(timeRange, bbox, catalog = pcAuthenticator(), collection = SENTIN
 
     return bestItem
 
-def createDataCube(item, bbox, bands = ["B02", "B03", "B04", "B8A", "B11", "B12"], resolution=10, compute = True):
+def createDataCube(item, bbox, bands = PRITHVI_BANDS, resolution=30, compute = True):
 
     dataCube = stackstac.stack(
         item,
         assets = bands,
         bounds_latlon = bbox,
         resolution = resolution,
-        epsg = 4326)
+        epsg = 4326,
+        fill_value=0)
     
     if compute:
         dataCube = dataCube.compute()
