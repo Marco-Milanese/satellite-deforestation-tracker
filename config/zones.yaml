@@ -1,0 +1,40 @@
+zones:
+  # 1. THE BATTERY FACTORY (Massive Clear-cut)
+  northvolt:
+    name: "Northvolt Ett (Skellefteå)"
+    # The main clearing for the factory halls
+    bbox: [21.045, 64.732, 21.085, 64.748]
+    dates:
+      before: "2018-06-01/2018-06-30" # Forest
+      after: "2024-06-01/2024-06-30"  # Concrete
+    description: "50+ hectares cleared for Europe's largest battery factory."
+
+  # 2. THE WIND FARM (Fragmentation/Spiderweb)
+  markbygden:
+    name: "Markbygden Phase 2 (Piteå)"
+    # A section of the forest showing the network of turbine roads
+    bbox: [20.550, 65.400, 20.700, 65.500]
+    dates:
+      before: "2017-06-01/2017-06-30" # Dense Pine
+      after: "2023-06-01/2023-06-30"  # Access Roads
+    description: "Habitat fragmentation caused by wind turbine infrastructure."
+
+  # 3. THE CLOUD (Data Centers)
+  microsoft_gavle:
+    name: "Microsoft Data Center (Gävle/Sandviken)"
+    # The 'Stackbo' site construction
+    bbox: [16.940, 60.625, 16.975, 60.640]
+    dates:
+      before: "2019-06-01/2019-06-30" # Farm/Forest
+      after: "2022-06-01/2022-06-30"  # Server Halls
+    description: "Deforestation for Hyperscale Cloud Infrastructure."
+
+  # 4. THE MOVING CITY (Urban Transformation)
+  kiruna_mine:
+    name: "Kiruna City Move (Gruvstadsparken)"
+    # The area where the city is being demolished for the mine
+    bbox: [20.210, 67.840, 20.250, 67.860]
+    dates:
+      before: "2016-06-01/2016-06-30" # Old City
+      after: "2024-06-01/2024-06-30"  # Mining Buffer Zone
+    description: "Urban deforestation due to LKAB mine expansion."
