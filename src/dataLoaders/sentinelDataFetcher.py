@@ -14,7 +14,7 @@ def pcAuthenticator(url=URL):
     )
     return catalog
 
-def searchSTAC(timeRange, bbox, catalog = pcAuthenticator(), collection = SENTINEL_2A, cloudCoverThreshold=20):
+def searchSTAC(timeRange, bbox, catalog = pcAuthenticator(), collection = SENTINEL_2A, cloudCoverThreshold=25):
     """Searches the STAC API for Sentinel-2 L2A images within the specified time range and bounding box.
     
     Args:
@@ -34,4 +34,16 @@ def searchSTAC(timeRange, bbox, catalog = pcAuthenticator(), collection = SENTIN
 
     return bestItem
 
+def createDataCube(item, bbox, bands = ["B02", "B03", "B04", "B8A", "B11", "B12"], resolution=10, compute = True):
 
+    dataCube = stackstac.stack(
+        item,
+        assets = bands,
+        bounds_latlon = bbox,
+        resolution = resolution,
+        epsg = 4326)
+    
+    if compute:
+        dataCube = dataCube.compute()
+    
+    return dataCube
