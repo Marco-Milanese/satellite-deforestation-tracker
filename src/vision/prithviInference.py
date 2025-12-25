@@ -84,11 +84,10 @@ def tensorToRGB(tensor, target_size=224):
 
 def cropToTargetSize(batch, target_size=224):
 
-    if batch['pixel_values'].shape[-1] != target_size:
+    if batch['pixel_values'].shape[-1] > target_size:
         print(f"Cropping tensor from {batch['pixel_values'].shape} to {target_size}x{target_size}...")
         croppedBatch = batch.copy()
         croppedBatch["pixel_values"] = F.center_crop(batch['pixel_values'], output_size=[target_size, target_size])
-        print(f"New tensor shape: {croppedBatch['pixel_values'].shape}")# Now shape is [1, 6, 224, 224]
         return croppedBatch
 
     

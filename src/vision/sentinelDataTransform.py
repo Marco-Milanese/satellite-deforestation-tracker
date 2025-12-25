@@ -23,15 +23,12 @@ def cubeToPrithviFormat(dataCube, bbox):
     # Convert to numpy and then torch
     # We use .values to strip xarray metadata
     tensor = torch.from_numpy(dataCube.values) * 0.0001  # Scale 0-10000 to 0-1
-    print(f"Initial tensor shape (Time, Band, Y, X): {tensor.shape}, Time = {tensor}")
     # Add Batch Dimension -> (1, Time, Band, Y, X)
     tensor = tensor.unsqueeze(0)
-    print(f"After unsqueeze, tensor shape (Batch, Time, Band, Y, X): {tensor.shape}")
     # Permute to Prithvi Order: (Batch, Channel, Time, Height, Width)
     # Current indices: 0=Batch, 1=Time, 2=Channel, 3=Height, 4=Width
     # Target indices:  0=Batch, 2=Channel, 1=Time, 3=Height, 4=Width
     tensor = tensor.permute(0, 2, 1, 3, 4)
-    print(f"After permute, tensor shape (Batch, Channel, Time, Height, Width): {tensor.shape}")
     # Validation: Ensure it is Float32 and normalized 0-1
     # stackstac(rescale=True) gives us 0.0-1.0 range, but check dtype.
     tensor = tensor.to(torch.float32)
@@ -46,7 +43,6 @@ def cubeToPrithviFormat(dataCube, bbox):
     year = date.year
     doy = date.dayofyear
     temporal_coords = torch.Tensor([[[year[-1], doy[-1] - 1]]])  # [1, 1, 2]
-    print(f"Temporal coords shape (Batch, Time, 2): {temporal_coords.shape}, values: {temporal_coords}")
 
 
     # 3. LOCATION COORDS: Shape (Batch, 2)
@@ -60,7 +56,7 @@ def cubeToPrithviFormat(dataCube, bbox):
     location_coords = torch.tensor([[center_lat, center_lon]], dtype=torch.float32)
 
     return {
-        "pixel_values": tensor,            # TerraTorch renames 'pixel_values' to 'image'
+        "pixel_values": tensor,           
         "temporal_coords": temporal_coords,
         "location_coords": location_coords
     }

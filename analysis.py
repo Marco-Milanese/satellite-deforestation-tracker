@@ -5,6 +5,7 @@ from torch.functional import F
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.widgets import Slider
+from math import cos
 
 def cropCenter(image, target_size=224):
     """
@@ -33,7 +34,7 @@ def CosineSimilarityMap(before, after):
     
     return changeMap
 
-def beforeAfterChangeMap(bbox, beforeDates, afterDates, model="prithvi_eo_v2_tiny_tl", visualize=False):
+def cropPipeline(bbox, beforeDates, afterDates, model="prithvi_eo_v2_tiny_tl", visualize=False):
     # 1. Fetch DataCubes
     beforeItem = createDataCube(
         searchSTAC(beforeDates, bbox),
@@ -124,10 +125,110 @@ def beforeAfterChangeMap(bbox, beforeDates, afterDates, model="prithvi_eo_v2_tin
 
     return beforeRGB, afterRGB, changeMap
 
-# Samsung Taylor Site (Taylor, TX)
-bbox_samsung_tx = [-97.475, 30.515, -97.440, 30.545]
+
+import torch
+
+def sliceTensor(tensor, target_size=224, stride=112):
+    """
+    Slices a (B, C, T, H, W) tensor into a list of (B, C, T, 224, 224) tensors
+    using a sliding window.
+    """
+    # 1. Unfold Height (Dim 3)
+    # Output: (B, C, T, n_h, W, patch_h)
+    tiles = tensor.unfold(3, target_size, stride)
+    
+    # 2. Unfold Width (Dim 4 is now Dim 4 in original terms, but 4th index here)
+    # Output: (B, C, T, n_h, n_w, patch_h, patch_w)
+    tiles = tiles.unfold(4, target_size, stride)
+    
+    # 3. Permute to put spatial patches in a flat list order
+    # Current: (B, C, T, n_h, n_w, patch_h, patch_w)
+    # Target:  (n_h, n_w, B, C, T, patch_h, patch_w)
+    tiles = tiles.permute(3, 4, 0, 1, 2, 5, 6)
+    
+    # 4. Flatten the patch grid (n_h * n_w) and convert to list
+    # Shape: (Num_Patches, B, C, T, patch_h, patch_w)
+    flat_tiles = tiles.reshape(-1, *tiles.shape[2:])
+    
+    # Convert to standard Python list
+    return [t for t in flat_tiles]
+
+# Usage
+# large_tensor = torch.randn(1, 6, 8, 1000, 1000)
+# tiles_list = slice_5d_tensor_overlapping(large_tensor, stride=112)
+
+def stitchPipeline(bbox, beforeDates, afterDates, model="prithvi_eo_v2_tiny_tl", visualize=False, targetSize=224, overlapRatio=0.5):
+    """
+     Handles images bigger than 224*224 by cutting them up in suitable chunks that will be processed separately and then stitched back togheter
+     
+     bbox format: [minLon, minLat, maxLon, maxLat]
+
+     1° lat --> 111 km
+     1° lon --> 111*cos(lon) km
+    
+    """
+    latDeltaKm = abs((bbox[3] - bbox[1]) * 111)
+    lonDeltaKm = abs((bbox[0] - bbox[2]) * (111 * cos(bbox[0])))
+    targetSizeKm = targetSize/100
+    print(f"latDelta: {latDeltaKm}, lonDelta:{lonDeltaKm}")
+    
+    if(max(latDeltaKm, lonDeltaKm) < 1.5 * targetSizeKm):
+       return cropPipeline(bbox, beforeDates, afterDates, model, visualize)
+     
+    """
+     Cut the image in (h/targetSize)*(w/targetSize) tiles -->
+     --> Pad tiles with h | w < targetSize with black border -->
+     --> run inference and calculate heatmap --> stitch heatmap -->
+     --> crop border
+
+     tiles will be generated with an overlapRatio and then the values will be averaged when stitching.
+
+     before tile (14, 14, 196) \
+                                > similarity heatMap tile (14, 14) --> append to list of tiles -->
+     after tile (14, 14, 196)  /
+                                  --> merge one row, averaging the vertical overlap -->
+                                  --> merge the rows averaging the horizontal overlap
+    """
+    beforeItem = createDataCube(
+       searchSTAC(beforeDates, bbox),
+       bbox)
+     
+    afterItem = createDataCube(
+    searchSTAC(afterDates, bbox),
+    bbox)
+    
+    #batch --> dict {
+        #"pixel_values": tensor,   --> (Batch, Channel, Time, Height, Width)
+        #"temporal_coords": temporal_coords,
+        #"location_coords": location_coords
+    #}
+    beforeBatch = cubeToPrithviFormat(beforeItem, bbox)
+    afterBatch = cubeToPrithviFormat(afterItem, bbox)
+
+    beforeTiles = sliceTensor(beforeBatch["pixel_value"], targetSize, targetSize * overlapRatio)
+    afterTiles = sliceTensor(afterBatch["pixel_value"], targetSize, targetSize * overlapRatio)
+
+
+
+    """
+    # 3. Run Inference
+    beforeGrid = fullInference(beforeBatch, model=model)
+    afterGrid = fullInference(afterBatch, model=model)
+
+    beforeRGB = cropCenter(tensorToRGB(beforeBatch['pixel_values']))
+    afterRGB = cropCenter(tensorToRGB(afterBatch['pixel_values']))
+    print(f"Before RGB shape: {beforeRGB.shape}, After RGB shape: {afterRGB.shape}")
+    """
+
+
+# Tesla Giga Texas (Austin)
+bbox_giga_tx = [-97.635, 30.210, -97.600, 30.240]
 
 # Dates
-date_before = "2021-08-01/2021-09-01" # Farmland
-date_after  = "2023-08-01/2023-09-01" # Active Construction
-beforeAfterChangeMap(bbox_samsung_tx, date_before, date_after, visualize=True)
+date_before = "2020-05-01/2020-06-01" # Site Clearing Starting
+date_after  = "2022-05-01/2022-06-01" # Fully Built
+stitchPipeline(bbox_giga_tx, date_before, date_after, visualize=True)    
+
+
+
+     
