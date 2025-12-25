@@ -35,17 +35,27 @@ def searchSTAC(timeRange, bbox, catalog = pcAuthenticator(), collection = SENTIN
 
     return bestItem
 
-def createDataCube(item, bbox, bands = PRITHVI_BANDS, resolution=30, compute = True):
+def createDataCube(item, bbox, bands = PRITHVI_BANDS, resolution=10, compute = False):
+
+    proj = item.properties["proj:code"]
+    espgCode = int(proj.split(":")[-1])
+    print(f"Using projection EPSG:{espgCode}")
 
     dataCube = stackstac.stack(
         item,
         assets = bands,
         bounds_latlon = bbox,
         resolution = resolution,
-        epsg = 4326,
+        epsg = espgCode,
         fill_value=0)
     
     if compute:
         dataCube = dataCube.compute()
     
     return dataCube
+
+"""
+item = searchSTAC(("2023-01-01/2023-12-31"), [-122.5, 37.7, -122.3, 37.8])
+dataCube = createDataCube(item, [-122.5, 37.7, -122.3, 37.8])
+print(dataCube.sel(band="B04").isel(time=0))
+"""

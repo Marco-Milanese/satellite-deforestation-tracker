@@ -3,7 +3,7 @@ zones:
   northvolt:
     name: "Northvolt Ett (Skellefteå)"
     # The main clearing for the factory halls
-    bbox: [21.045, 64.732, 21.085, 64.748]
+    bbox: [21.0414, 64.7299, 21.0886, 64.7501]
     dates:
       before: "2018-06-01/2018-06-30" # Forest
       after: "2024-06-01/2024-06-30"  # Concrete
