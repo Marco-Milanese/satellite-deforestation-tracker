@@ -5,7 +5,7 @@ from torch.functional import F
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.widgets import Slider
-from math import cos
+from math import cos, floor
 
 def cropCenter(image, target_size=224):
     """
@@ -59,6 +59,7 @@ def cropPipeline(bbox, beforeDates, afterDates, model="prithvi_eo_v2_tiny_tl", v
 
     # 4. Compute Change Map
     changeMap = CosineSimilarityMap(beforeGrid, afterGrid)
+    changeMapShape = changeMap.shape
     
     if visualize:
             # Pre-calculate high-res heatmap ONCE
@@ -167,28 +168,31 @@ def stitchPipeline(bbox, beforeDates, afterDates, model="prithvi_eo_v2_tiny_tl",
      1° lon --> 111*cos(lon) km
     
     """
-    latDeltaKm = abs((bbox[3] - bbox[1]) * 111)
-    lonDeltaKm = abs((bbox[0] - bbox[2]) * (111 * cos(bbox[0])))
-    targetSizeKm = targetSize/100
-    print(f"latDelta: {latDeltaKm}, lonDelta:{lonDeltaKm}")
-    
-    if(max(latDeltaKm, lonDeltaKm) < 1.5 * targetSizeKm):
-       return cropPipeline(bbox, beforeDates, afterDates, model, visualize)
-     
     """
-     Cut the image in (h/targetSize)*(w/targetSize) tiles -->
-     --> Pad tiles with h | w < targetSize with black border -->
-     --> run inference and calculate heatmap --> stitch heatmap -->
-     --> crop border
+     Cut the image in (h/targetSize)*(w/targetSize) tiles with an overlap of overlapRatio % -->
+     --> run inference and calculate heatmap --> stitch heatmap
+     
+     If the image size is notperfectly divisible by the target size partial tiles will be ignored
 
      tiles will be generated with an overlapRatio and then the values will be averaged when stitching.
 
-     before tile (14, 14, 196) \
+     before tile (14, 14, 196) 
                                 > similarity heatMap tile (14, 14) --> append to list of tiles -->
      after tile (14, 14, 196)  /
                                   --> merge one row, averaging the vertical overlap -->
                                   --> merge the rows averaging the horizontal overlap
     """
+    latDeltaKm = abs((bbox[3] - bbox[1]) * 111)
+    lonDeltaKm = abs((bbox[0] - bbox[2]) * (111 * cos(bbox[0])))
+    targetSizeKm = targetSize/100
+    print(f"latDelta: {latDeltaKm}, lonDelta:{lonDeltaKm}")
+    
+    if(max(latDeltaKm, lonDeltaKm) < 2 * targetSizeKm):
+       print("Cropping...")
+       return cropPipeline(bbox, beforeDates, afterDates, model, visualize)
+    
+    
+    print("Stitching...")
     beforeItem = createDataCube(
        searchSTAC(beforeDates, bbox),
        bbox)
@@ -197,20 +201,101 @@ def stitchPipeline(bbox, beforeDates, afterDates, model="prithvi_eo_v2_tiny_tl",
     searchSTAC(afterDates, bbox),
     bbox)
     
+    beforeBatch = cubeToPrithviFormat(beforeItem, bbox)
+    afterBatch = cubeToPrithviFormat(afterItem, bbox)
     #batch --> dict {
         #"pixel_values": tensor,   --> (Batch, Channel, Time, Height, Width)
         #"temporal_coords": temporal_coords,
         #"location_coords": location_coords
     #}
-    beforeBatch = cubeToPrithviFormat(beforeItem, bbox)
-    afterBatch = cubeToPrithviFormat(afterItem, bbox)
+    
+    stride = int(floor(targetSize * overlapRatio))
+    h, w = beforeBatch["pixel_values"].shape[-2:]
+    columns = floor(w / stride )
+    rows = floor(h / stride)
 
-    beforeTiles = sliceTensor(beforeBatch["pixel_value"], targetSize, targetSize * overlapRatio)
-    afterTiles = sliceTensor(afterBatch["pixel_value"], targetSize, targetSize * overlapRatio)
+    #beforeTiles = sliceTensor(beforeBatch["pixel_values"], targetSize, targetSize * overlapRatio)
+    #afterTiles = sliceTensor(afterBatch["pixel_values"], targetSize, targetSize * overlapRatio)
+    
+    heatMapTiles = torch.zeros(rows, columns, 14, 14)
+    #0=Batch, 2=Channel, 1=Time, 3=Height, 4=Width
+    for i in range(rows):
+        for j in range(columns):
+            #(Batch, Channel, Time, Height, Width)
+            #start : stop : step
+            hStart = i * stride
+            hStop = hStart + targetSize
+            wStart = j * stride
+            wStop = wStart + targetSize
+            beforeTile = beforeBatch["pixel_values"][:, :, :, hStart:hStop, wStart:wStop]
+            afterTile = afterBatch["pixel_values"][:, :, :, hStart:hStop, wStart:wStop]
+            beforeTileShape = beforeTile.shape
+            afterTileShape = afterTile.shape
+
+            beforeTileBatch = {
+                "pixel_values": beforeTile,           
+                "temporal_coords": beforeBatch["temporal_coords"],
+                "location_coords": beforeBatch["location_coords"]
+            }
+            afterTileBatch = {
+                "pixel_values": afterTile,           
+                "temporal_coords": afterBatch["temporal_coords"],
+                "location_coords": afterBatch["location_coords"]
+            }
+
+            beforeTileGrid = fullInference(beforeTileBatch, model=model)
+            afterTileGrid = fullInference(afterTileBatch, model=model)
+
+            heatMapTiles[i, j] = (CosineSimilarityMap(beforeTileGrid, afterTileGrid))
+    
+    heatMapTilesShape = heatMapTiles.shape
+    debug = 1
 
 
+"""
+    for i in range(len(input_tiles_before)):
+        # Construct mini-batches (Reuse coords from main batch for simplicity)
+        b_tile_batch = {
+            "pixel_values": input_tiles_before[i],
+            "temporal_coords": beforeBatch["temporal_coords"],
+            "location_coords": beforeBatch["location_coords"]
+        }
+        a_tile_batch = {
+            "pixel_values": input_tiles_after[i],
+            "temporal_coords": afterBatch["temporal_coords"],
+            "location_coords": afterBatch["location_coords"]
+        }
 
-    """
+        # Inference (Output: B, C, 14, 14)
+        b_grid = fullInference(b_tile_batch, model=model)
+        a_grid = fullInference(a_tile_batch, model=model)
+        
+        # Compute Change Map (Output: B, 14, 14)
+        change_tile = CosineSimilarityMap(b_grid, a_grid)
+        
+        # *** INTERPOLATION STEP ***
+        # Upsample 14x14 -> 224x224 NOW to match the input tile size
+        # We add channel dim (1) for interpolate -> (B, 1, 14, 14)
+        change_tile_upsampled = F.interpolate(
+            change_tile.unsqueeze(1), 
+            size=(targetSize, targetSize), 
+            mode='bilinear', 
+            align_corners=False
+        ) # Output: (B, 1, 224, 224)
+
+        heatmap_tiles_list.append(change_tile_upsampled)
+
+    #heatmapTiles list of overlapping map tiles 
+    heatmapTiles.view(columns * 1/overlapRatio, rows * 1/overlapRatio)
+    for i in rows * 1/overlapRatio:
+        for j in columns * 1/overlapRatio:
+            tile1 = heatmapTiles[i][j]
+            tile2 = heatmapTiles[i+1][j+1]
+
+            #tile is 14*14*196 --> 14*21*196
+"""    
+
+"""
     # 3. Run Inference
     beforeGrid = fullInference(beforeBatch, model=model)
     afterGrid = fullInference(afterBatch, model=model)
@@ -218,11 +303,11 @@ def stitchPipeline(bbox, beforeDates, afterDates, model="prithvi_eo_v2_tiny_tl",
     beforeRGB = cropCenter(tensorToRGB(beforeBatch['pixel_values']))
     afterRGB = cropCenter(tensorToRGB(afterBatch['pixel_values']))
     print(f"Before RGB shape: {beforeRGB.shape}, After RGB shape: {afterRGB.shape}")
-    """
+"""
 
 
 # Tesla Giga Texas (Austin)
-bbox_giga_tx = [-97.635, 30.210, -97.600, 30.240]
+bbox_giga_tx =[-97.670, 30.180, -97.565, 30.270]
 
 # Dates
 date_before = "2020-05-01/2020-06-01" # Site Clearing Starting

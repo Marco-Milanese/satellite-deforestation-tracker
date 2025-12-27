@@ -114,7 +114,7 @@ def prithviInference(batch, model = "prithvi_eo_v2_tiny_tl"):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     model = BACKBONE_REGISTRY.build(
-    "prithvi_eo_v2_tiny_tl", pretrained=True
+    "prithvi_eo_v2_tiny_tl", pretrained=True,
     )
 
     model.to(device)
@@ -122,9 +122,9 @@ def prithviInference(batch, model = "prithvi_eo_v2_tiny_tl"):
 
     with torch.no_grad():
         embeddings = model(    
-        batch['pixel_values'],
-        batch['temporal_coords'],
-        batch['location_coords']
+        batch['pixel_values'].to(device),
+        batch['temporal_coords'].to(device),
+        batch['location_coords'].to(device)
     )
 
     return embeddings
