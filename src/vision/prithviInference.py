@@ -97,7 +97,7 @@ def cropToTargetSize(batch, target_size=224):
     return batch
 
 
-def prithviInference(batch, model = "prithvi_eo_v2_tiny_tl"):
+def prithviInference(batch, model):
     """
     Given a Prithvi model and a data cube, performs inference to get embeddings.
     
@@ -113,12 +113,6 @@ def prithviInference(batch, model = "prithvi_eo_v2_tiny_tl"):
         All the other patches correspond to different spatial regions of the input image.
     """
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    model = BACKBONE_REGISTRY.build(
-    "prithvi_eo_v2_tiny_tl", pretrained=True,
-    )
-
-    model.to(device)
     model.eval()
 
     with torch.no_grad():
@@ -143,10 +137,11 @@ def toGrid(embeddings, grid_size=14):
     """
     lastLayerOutput = embeddings[-1].squeeze(0)  # Shape: (197, Embedding_Dim)
     lloNoCLS = lastLayerOutput[1:, :]  # Remove CLS token, Shape: (196, Embedding_Dim)
+    lloNoCLSshp = lloNoCLS.shape
     gridOutput = lloNoCLS.view(grid_size, grid_size, -1)  # Shape: (grid_size, grid_size, Embedding_Dim)
     return gridOutput
 
-def fullInference(batch, model = "prithvi_eo_v2_tiny_tl", grid_size=14):
+def fullInference(batch, model, grid_size=14):
     """
     Combines prithviInference and toGrid for end-to-end processing.
     
