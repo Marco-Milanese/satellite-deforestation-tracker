@@ -54,12 +54,13 @@ def tensorToRGB(tensor, target_size=224):
         raise ValueError(f"Shape Error: Expected 6 channels. Got {image_data.shape}")
 
     # 4. Center Crop
+    """
     h, w, c = image_data.shape
     if target_size is not None and (h > target_size or w > target_size):
         start_y = (h - target_size) // 2
         start_x = (w - target_size) // 2
         image_data = image_data[start_y : start_y + target_size, start_x : start_x + target_size, :]
-
+    """
     # 5. Extract RGB (Blue=0, Green=1, Red=2)
     rgb = image_data[:, :, [2, 1, 0]] # Fancy indexing to reorder to R, G, B
 

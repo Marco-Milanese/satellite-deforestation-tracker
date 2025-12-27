@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.widgets import Slider
 from math import cos, floor
+import torch
 
 def cropCenter(image, target_size=224):
     """
@@ -126,38 +127,6 @@ def cropPipeline(bbox, beforeDates, afterDates, model="prithvi_eo_v2_tiny_tl", v
 
     return beforeRGB, afterRGB, changeMap
 
-
-import torch
-
-def sliceTensor(tensor, target_size=224, stride=112):
-    """
-    Slices a (B, C, T, H, W) tensor into a list of (B, C, T, 224, 224) tensors
-    using a sliding window.
-    """
-    # 1. Unfold Height (Dim 3)
-    # Output: (B, C, T, n_h, W, patch_h)
-    tiles = tensor.unfold(3, target_size, stride)
-    
-    # 2. Unfold Width (Dim 4 is now Dim 4 in original terms, but 4th index here)
-    # Output: (B, C, T, n_h, n_w, patch_h, patch_w)
-    tiles = tiles.unfold(4, target_size, stride)
-    
-    # 3. Permute to put spatial patches in a flat list order
-    # Current: (B, C, T, n_h, n_w, patch_h, patch_w)
-    # Target:  (n_h, n_w, B, C, T, patch_h, patch_w)
-    tiles = tiles.permute(3, 4, 0, 1, 2, 5, 6)
-    
-    # 4. Flatten the patch grid (n_h * n_w) and convert to list
-    # Shape: (Num_Patches, B, C, T, patch_h, patch_w)
-    flat_tiles = tiles.reshape(-1, *tiles.shape[2:])
-    
-    # Convert to standard Python list
-    return [t for t in flat_tiles]
-
-# Usage
-# large_tensor = torch.randn(1, 6, 8, 1000, 1000)
-# tiles_list = slice_5d_tensor_overlapping(large_tensor, stride=112)
-
 def stitchPipeline(bbox, beforeDates, afterDates, model="prithvi_eo_v2_tiny_tl", visualize=False, targetSize=224, overlapRatio=0.5):
     """
      Handles images bigger than 224*224 by cutting them up in suitable chunks that will be processed separately and then stitched back togheter
@@ -211,8 +180,16 @@ def stitchPipeline(bbox, beforeDates, afterDates, model="prithvi_eo_v2_tiny_tl",
     
     stride = int(floor(targetSize * overlapRatio))
     h, w = beforeBatch["pixel_values"].shape[-2:]
-    columns = floor(w / stride )
-    rows = floor(h / stride)
+    newH = targetSize * (floor(h/targetSize))
+    newW = targetSize * (floor(w/targetSize))
+
+    beforePixelValues = beforeBatch["pixel_values"][:, :, :, :newH, :newW]
+    afterPixelValues = afterBatch["pixel_values"][:, :, :, :newH, :newW]
+
+    beforePixelValuesShape = beforePixelValues.shape
+
+    columns = floor(newW / stride) - 1
+    rows = floor(newH / stride) - 1
 
     #beforeTiles = sliceTensor(beforeBatch["pixel_values"], targetSize, targetSize * overlapRatio)
     #afterTiles = sliceTensor(afterBatch["pixel_values"], targetSize, targetSize * overlapRatio)
@@ -227,8 +204,8 @@ def stitchPipeline(bbox, beforeDates, afterDates, model="prithvi_eo_v2_tiny_tl",
             hStop = hStart + targetSize
             wStart = j * stride
             wStop = wStart + targetSize
-            beforeTile = beforeBatch["pixel_values"][:, :, :, hStart:hStop, wStart:wStop]
-            afterTile = afterBatch["pixel_values"][:, :, :, hStart:hStop, wStart:wStop]
+            beforeTile = beforePixelValues[:, :, :, hStart:hStop, wStart:wStop]
+            afterTile = afterPixelValues[:, :, :, hStart:hStop, wStart:wStop]
             beforeTileShape = beforeTile.shape
             afterTileShape = afterTile.shape
 
@@ -247,72 +224,116 @@ def stitchPipeline(bbox, beforeDates, afterDates, model="prithvi_eo_v2_tiny_tl",
             afterTileGrid = fullInference(afterTileBatch, model=model)
 
             heatMapTiles[i, j] = (CosineSimilarityMap(beforeTileGrid, afterTileGrid))
-    
+
     heatMapTilesShape = heatMapTiles.shape
-    debug = 1
+    mergedHeatMap = torch.empty(0, int(((columns + 1)/2) * 14))
+    for i in range(rows):
+        mergedHeatMapRow = torch.empty(14, 0)
+        for j in range(columns):
+            currentTile = heatMapTiles[i, j]
+            if not (j == 0 or j == columns - 1):
+                print("j != 0 & j != columns - 1")
+                previousTile = heatMapTiles[i, j - 1]
+                nextTile = heatMapTiles[i, j + 1]
+                firstHalfMerged = (previousTile[..., 7:] + currentTile[..., :7]) / 2
+            elif(j == 0):
+                print("j == 0")
+                nextTile = heatMapTiles[i, j + 1]
+                firstHalfMerged = currentTile[..., :7]
+                secondHalfMerged = (currentTile[..., :7] + nextTile[..., 7:]) / 2
+            else:
+                print("j == columns - 1")
+                previousTile = heatMapTiles[i, j - 1]
+                firstHalfMerged = (previousTile[..., 7:] + currentTile[..., :7]) / 2
+                secondHalfMerged = currentTile[..., 7:]
+                
+            mergedTile = torch.cat((firstHalfMerged, secondHalfMerged), dim=1)
 
+            mergedHeatMapRow = torch.cat((mergedHeatMapRow[..., :-7], mergedTile), dim=1)
+                
+        mergedHeatRowShape = mergedHeatMapRow.shape
+        print("Merging Row...")
+        mergedHeatMap = torch.cat((mergedHeatMap[:-7,...], mergedHeatMapRow), dim=0)
+        mergedHeatMapShape = mergedHeatMap.shape
+    
 
-"""
-    for i in range(len(input_tiles_before)):
-        # Construct mini-batches (Reuse coords from main batch for simplicity)
-        b_tile_batch = {
-            "pixel_values": input_tiles_before[i],
-            "temporal_coords": beforeBatch["temporal_coords"],
-            "location_coords": beforeBatch["location_coords"]
-        }
-        a_tile_batch = {
-            "pixel_values": input_tiles_after[i],
-            "temporal_coords": afterBatch["temporal_coords"],
-            "location_coords": afterBatch["location_coords"]
-        }
+    beforeRGB = tensorToRGB(beforePixelValues)
+    beforeRGBShape = beforeRGB.shape
+    afterRGB = tensorToRGB(afterPixelValues)
+    afterRGBShape = afterRGB.shape
+    changeMap = mergedHeatMap
+    if visualize:
+        # Pre-calculate high-res heatmap ONCE
+        heatmap_tensor = changeMap.unsqueeze(0).unsqueeze(0)
+        heatmap_high_res = F.interpolate(
+            heatmap_tensor, size=afterRGB.shape[:2], mode='bilinear', align_corners=False
+        )
+        heatmap_np = heatmap_high_res.squeeze().detach().cpu().numpy()
 
-        # Inference (Output: B, C, 14, 14)
-        b_grid = fullInference(b_tile_batch, model=model)
-        a_grid = fullInference(a_tile_batch, model=model)
+        # --- AUTO-SCALE LOGIC (The New Part) ---
+        # 1. Find the 98th percentile of the data (robust max)
+        data_max = np.percentile(heatmap_np, 98)
         
-        # Compute Change Map (Output: B, 14, 14)
-        change_tile = CosineSimilarityMap(b_grid, a_grid)
+        # 2. Set dynamic vmax:
+        # Use data_max, but never go below 0.20 (to prevent noise from looking like fire)
+        dynamic_vmax = max(data_max, 0.10)
+        dynamic_noise_threshold = dynamic_vmax * .17
+
+
+        # --- VISUALIZATION SETUP ---
+        fig, axes = plt.subplots(1, 3, figsize=(24, 9)) # Taller figure to fit sliders
+        plt.subplots_adjust(bottom=0.25) # Make room at the bottom
+
+        # Static Images
+        axes[0].imshow(beforeRGB); axes[0].set_title("Before (T0)", fontsize=16); axes[0].axis('off')
+        axes[1].imshow(afterRGB); axes[1].set_title("After (T1)", fontsize=16); axes[1].axis('off')
         
-        # *** INTERPOLATION STEP ***
-        # Upsample 14x14 -> 224x224 NOW to match the input tile size
-        # We add channel dim (1) for interpolate -> (B, 1, 14, 14)
-        change_tile_upsampled = F.interpolate(
-            change_tile.unsqueeze(1), 
-            size=(targetSize, targetSize), 
-            mode='bilinear', 
-            align_corners=False
-        ) # Output: (B, 1, 224, 224)
+        # Dynamic Image (Overlay)
+        axes[2].imshow(afterRGB)
+        # Initialize with default threshold (0.05) and vmax (0.25)
+        initial_mask = np.ma.masked_where(heatmap_np < dynamic_noise_threshold, heatmap_np)
+        overlay = axes[2].imshow(
+            initial_mask, cmap='RdYlGn_r', alpha=0.8, vmin=0, vmax=dynamic_vmax
+        )
+        axes[2].set_title("Deforestation Overlay", fontsize=16)
+        axes[2].axis('off')
 
-        heatmap_tiles_list.append(change_tile_upsampled)
+        # --- SLIDERS ---
+        # Slider 1: Sensitivity (vmax) - Controls color saturation
+        ax_sens = plt.axes([0.20, 0.1, 0.60, 0.03]) # [left, bottom, width, height]
+        slider_sens = Slider(ax_sens, 'Sensitivity (Max Color)', 0.05, 1.0, valinit=dynamic_vmax)
 
-    #heatmapTiles list of overlapping map tiles 
-    heatmapTiles.view(columns * 1/overlapRatio, rows * 1/overlapRatio)
-    for i in rows * 1/overlapRatio:
-        for j in columns * 1/overlapRatio:
-            tile1 = heatmapTiles[i][j]
-            tile2 = heatmapTiles[i+1][j+1]
+        # Slider 2: Noise Filter (Threshold) - Controls what gets hidden
+        ax_thres = plt.axes([0.20, 0.05, 0.60, 0.03]) 
+        slider_thres = Slider(ax_thres, 'Noise Filter (Min Prob)', 0.0, 0.5, valinit=dynamic_noise_threshold)
 
-            #tile is 14*14*196 --> 14*21*196
-"""    
+        # Update Function
+        def update(val):
+            # 1. Update Color Limit (Sensitivity)
+            overlay.set_clim(vmax=slider_sens.val)
+            
+            # 2. Update Mask (Threshold)
+            # We must re-calculate the masked array based on the new slider value
+            new_mask = np.ma.masked_where(heatmap_np < slider_thres.val, heatmap_np)
+            overlay.set_data(new_mask)
+            
+            fig.canvas.draw_idle()
 
-"""
-    # 3. Run Inference
-    beforeGrid = fullInference(beforeBatch, model=model)
-    afterGrid = fullInference(afterBatch, model=model)
+        # Link sliders to function
+        slider_sens.on_changed(update)
+        slider_thres.on_changed(update)
 
-    beforeRGB = cropCenter(tensorToRGB(beforeBatch['pixel_values']))
-    afterRGB = cropCenter(tensorToRGB(afterBatch['pixel_values']))
-    print(f"Before RGB shape: {beforeRGB.shape}, After RGB shape: {afterRGB.shape}")
-"""
+        plt.show(block=True)
 
+    return beforeRGB, afterRGB, changeMap
 
 # Tesla Giga Texas (Austin)
-bbox_giga_tx =[-97.670, 30.180, -97.565, 30.270]
+bbox_giga_tx = [-97.670, 30.180, -97.565, 30.270]
 
 # Dates
 date_before = "2020-05-01/2020-06-01" # Site Clearing Starting
 date_after  = "2022-05-01/2022-06-01" # Fully Built
-stitchPipeline(bbox_giga_tx, date_before, date_after, visualize=True)    
+cropPipeline(bbox_giga_tx, date_before, date_after, visualize=True)    
 
 
 
