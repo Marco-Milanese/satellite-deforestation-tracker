@@ -201,13 +201,13 @@ def stitchPipeline(bbox, beforeDates, afterDates, model="prithvi_eo_v2_tiny_tl",
     return beforeRGB, afterRGB, changeMap
 
 # Tesla Giga Texas (Austin)
-"""
+
 bbox_giga_tx = [-97.670, 30.180, -97.565, 30.270]
 
 # Dates
 date_before = "2020-05-01/2020-06-01" # Site Clearing Starting
 date_after  = "2022-05-01/2022-06-01" # Fully Built
-
+"""
 bbox_saudi_arabia = [35.180, 28.100, 35.285, 28.190]
 
 # Dates
@@ -219,17 +219,18 @@ bbox_lake_mead = [-114.450, 36.050, -114.340, 36.140]
 # Dates
 date_before = "2017-06-01/2017-07-01" # High Water Levels
 date_after  = "2022-06-01/2022-07-01" # Significant Water Loss
+
+# Diga di Occhito (Molise/Puglia Border)
+# Focusing on the central basin where the shoreline recedes significantly
+bbox_occhito = [14.9076, 41.5919, 14.9677, 41.6369]
+
+# Dates: 2017 Drought Analysis
+# Before: Spring (Reservoir usually full)
+date_before = "2025-08-01/2025-09-01" 
+
+# After: Peak of the 2017 Water Crisis (Reservoir nearly empty)
+date_after  = "2025-11-01/2025-12-01"
 """
-# Rondônia, Brazil (Active "Fishbone" Frontier)
-# 25km x 25km box
-bbox_amazon_rondonia = [-63.950, -10.350, -63.720, -10.120]
-
-# Dates (Dry Season selected to minimize clouds)
-# Before: Early stages of road expansion
-date_before = "2017-06-01/2017-08-01" 
-
-# After: Significant consolidation of pasture land
-date_after  = "2022-06-01/2022-08-01"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 model = BACKBONE_REGISTRY.build(
@@ -238,7 +239,7 @@ model = BACKBONE_REGISTRY.build(
 
 model.to(device)
 
-beforeRGB, afterRGB, changeMap = stitchPipeline(bbox_amazon_rondonia, date_before, date_after, model=model)
+beforeRGB, afterRGB, changeMap = stitchPipeline(bbox_giga_tx, date_before, date_after, model=model)
 VisualizeComparison(beforeRGB, afterRGB, changeMap)   
 
 
