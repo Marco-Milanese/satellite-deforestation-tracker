@@ -1,7 +1,7 @@
 import pystac_client
 import planetary_computer
 import stackstac
-import rasterio
+from itertools import groupby
 
 URL = "https://planetarycomputer.microsoft.com/api/stac/v1"
 SENTINEL_2A = "sentinel-2-l2a"
@@ -15,7 +15,7 @@ def pcAuthenticator(url=URL):
     )
     return catalog
 
-def searchSTAC(timeRange, bbox, catalog = pcAuthenticator(), collection = SENTINEL_2A, cloudCoverThreshold=25):
+def searchSTAC(timeRange, bbox, catalog = pcAuthenticator(), collection = SENTINEL_2A, cloudCoverThreshold=5, minCoverage=80):
     """Searches the STAC API for Sentinel-2 L2A images within the specified time range and bounding box.
     
     Args:
@@ -29,15 +29,41 @@ def searchSTAC(timeRange, bbox, catalog = pcAuthenticator(), collection = SENTIN
     search = catalog.search(collections = [collection], datetime = timeRange, bbox = bbox, query = {"eo:cloud_cover": {"lt": cloudCoverThreshold}})
 
     items = search.get_all_items()
+    print(f"{len(items)} tiles fetched")
+    sorted_items = sorted(items, key=lambda x: x.properties.get("s2:mgrs_tile", "unknown"))
 
-    bestItem = min(items, key=lambda item: item.properties["eo:cloud_cover"])
+    best_items = []
+
+    # 2. Group by Spatial Location
+    for mgrs_id, group in groupby(sorted_items, key=lambda x: x.properties.get("s2:mgrs_tile", "unknown")):
+        # 'group' is an iterator of all items in this specific grid cell (across different dates)
+        tile_versions = list(group)
+
+        valid_tiles = []
+        for t in tile_versions:
+            nodata = t.properties.get("s2:nodata_pixel_percentage", 0)
+            valid_pct = 100 - nodata
+            
+            if valid_pct >= minCoverage:
+                valid_tiles.append(t)
+        # 3. Find the best one in this group
+        # We find the item with the minimum 'eo:cloud_cover'.
+        # We default to 100 if the property is missing to avoid crashes.
+        best_tile = min(valid_tiles, key=lambda x: x.properties.get("eo:cloud_cover", 100))
+        
+        best_items.append(best_tile)
+        
+        # Optional: Print what we picked
+        print(f"Tile {mgrs_id}: Picked date {best_tile.datetime.date()} with {best_tile.properties['eo:cloud_cover']}% cloud coverage")
+
+    #bestItem = min(items, key=lambda item: item.properties["eo:cloud_cover"])
     #dict_keys(['type', 'stac_version', 'stac_extensions', 'id', 'geometry', 'bbox', 'properties', 'links', 'assets', 'collection'])
 
-    return bestItem
+    return best_items
 
 def createDataCube(item, bbox, bands = PRITHVI_BANDS, resolution=10, compute = False):
 
-    proj = item.properties["proj:code"]
+    proj = item[0].properties["proj:code"]
     espgCode = int(proj.split(":")[-1])
     print(f"Using projection EPSG:{espgCode}")
 
@@ -49,6 +75,16 @@ def createDataCube(item, bbox, bands = PRITHVI_BANDS, resolution=10, compute = F
         epsg = espgCode,
         fill_value=0)
     
+
+    mosaic = dataCube.max(dim="time", keep_attrs=True)
+
+    # 3. Handle Missing Data
+    # Fill any remaining gaps (e.g., if the tiles didn't fully cover the ROI)
+    mosaic = mosaic.fillna(0)
+
+    # 4. Add 'Time' dimension back 
+    # (Models usually expect a Batch/Time dimension, e.g., (1, C, H, W))
+    dataCube = mosaic.expand_dims(dim="time")
     if compute:
         dataCube = dataCube.compute()
     

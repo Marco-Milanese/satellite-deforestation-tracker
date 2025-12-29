@@ -1,247 +1,205 @@
-from src.vision.prithviInference import fullInference, tensorToRGB
+from src.vision.prithviInference import fullInference
 from src.dataLoaders.sentinelDataFetcher import createDataCube, searchSTAC
-from src.vision.sentinelDataTransform import cubeToPrithviFormat
-from torch.functional import F
-import matplotlib.pyplot as plt
-import numpy as np
-from matplotlib.widgets import Slider
-from math import cos, floor
+from src.vision.utils.visionUtils import cubeToPrithviFormat, tensorToRGB, VisualizeComparison
 import torch
+import torch.nn.functional as F
+from math import floor
 from terratorch.registry import BACKBONE_REGISTRY
+from tqdm import tqdm
 
 def CosineSimilarityMap(before, after):
+    """
+    Calculates Cosine changeMapChunkilarity along the channel dimension (dim=1).
     
-    similarityMap = F.cosine_similarity(before, after, dim=2)
-    # 2. Convert to "Change Probability" (0 = No Change, 2 = Max Change)
-    changeMap = 1 - similarityMap
-    
-    return changeMap
-
-def VisualizeComparison(beforeRGB, afterRGB, changeMap):
-    heatmap_tensor = changeMap.unsqueeze(0).unsqueeze(0)
-    heatmap_high_res = F.interpolate(
-        heatmap_tensor, size=afterRGB.shape[:2], mode='bilinear', align_corners=False
-    )
-    heatmap_np = heatmap_high_res.squeeze().detach().cpu().numpy()
-
-    # --- AUTO-SCALE LOGIC (The New Part) ---
-    # 1. Find the 98th percentile of the data (robust max)
-    data_max = np.percentile(heatmap_np, 98)
-    
-    # 2. Set dynamic vmax:
-    # Use data_max, but never go below 0.20 (to prevent noise from looking like fire)
-    dynamic_vmax = max(data_max, 0.10)
-    dynamic_noise_threshold = dynamic_vmax * .17
-
-
-    # --- VISUALIZATION SETUP ---
-    fig, axes = plt.subplots(1, 3, figsize=(24, 9)) # Taller figure to fit sliders
-    plt.subplots_adjust(bottom=0.25) # Make room at the bottom
-
-    # Static Images
-    axes[0].imshow(beforeRGB); axes[0].set_title("Before (T0)", fontsize=16); axes[0].axis('off')
-    axes[1].imshow(afterRGB); axes[1].set_title("After (T1)", fontsize=16); axes[1].axis('off')
-    
-    # Dynamic Image (Overlay)
-    axes[2].imshow(afterRGB)
-    # Initialize with default threshold (0.05) and vmax (0.25)
-    initial_mask = np.ma.masked_where(heatmap_np < dynamic_noise_threshold, heatmap_np)
-    overlay = axes[2].imshow(
-        initial_mask, cmap='RdYlGn_r', alpha=0.8, vmin=0, vmax=dynamic_vmax
-    )
-    axes[2].set_title("Deforestation Overlay", fontsize=16)
-    axes[2].axis('off')
-
-    # --- SLIDERS ---
-    # Slider 1: Sensitivity (vmax) - Controls color saturation
-    ax_sens = plt.axes([0.20, 0.1, 0.60, 0.03]) # [left, bottom, width, height]
-    slider_sens = Slider(ax_sens, 'Sensitivity (Max Color)', 0.05, 1.0, valinit=dynamic_vmax)
-
-    # Slider 2: Noise Filter (Threshold) - Controls what gets hidden
-    ax_thres = plt.axes([0.20, 0.05, 0.60, 0.03]) 
-    slider_thres = Slider(ax_thres, 'Noise Filter (Min Prob)', 0.0, 0.5, valinit=dynamic_noise_threshold)
-
-    # Update Function
-    def update(val):
-        # 1. Update Color Limit (Sensitivity)
-        overlay.set_clim(vmax=slider_sens.val)
+    Args:
+        before: Tensor of shape (Batch, 192, 14, 14)
+        after:  Tensor of shape (Batch, 192, 14, 14)
         
-        # 2. Update Mask (Threshold)
-        # We must re-calculate the masked array based on the new slider value
-        new_mask = np.ma.masked_where(heatmap_np < slider_thres.val, heatmap_np)
-        overlay.set_data(new_mask)
-        
-        fig.canvas.draw_idle()
-
-    # Link sliders to function
-    slider_sens.on_changed(update)
-    slider_thres.on_changed(update)
-
-    plt.show()
-
-def stitchPipeline(bbox, beforeDates, afterDates, model="prithvi_eo_v2_tiny_tl", gridSize=14, targetSize=224, overlapRatio=0.5):
+    Returns:
+        Tensor of shape (Batch, 1, 14, 14) representing change probability.
     """
-     Handles images bigger than 224*224 by cutting them up in suitable chunks that will be processed separately and then stitched back togheter
-     
-     bbox format: [minLon, minLat, maxLon, maxLat]
+    changeMap = 1 - F.cosine_similarity(before, after, dim=1)
 
-     1° lat --> 111 km
-     1° lon --> 111*cos(lon) km
+    return changeMap.unsqueeze(1)
+
+
+def stitchPipeline(bbox, beforeDates, afterDates, model="prithvi_eo_v2_tiny_tl", gridSize=14, targetSize=224, overlapRatio=0.5, chunkSize = 16):
+    """
+    Optimized pipeline for large satellite imagery using Fold/Unfold and Coordinate Interpolation.
+    """
+    print(f"Analysing area: [{bbox}]")
     
-    """
-    """
-     Cut the image in (h/targetSize)*(w/targetSize) tiles with an overlap of overlapRatio % -->
-     --> run inference and calculate heatmap --> stitch heatmap
-     
-     If the image size is notperfectly divisible by the target size partial tiles will be ignored
-
-     tiles will be generated with an overlapRatio and then the values will be averaged when stitching.
-
-     before tile (14, 14, 196) 
-                                > similarity heatMap tile (14, 14) --> append to list of tiles -->
-     after tile (14, 14, 196)  /
-                                  --> merge one row, averaging the vertical overlap -->
-                                  --> merge the rows averaging the horizontal overlap
-    """
-    latDeltaKm = abs((bbox[3] - bbox[1]) * 111)
-    lonDeltaKm = abs((bbox[0] - bbox[2]) * (111 * cos(bbox[0])))
-    print(f"latDelta: {latDeltaKm} km, lonDelta:{lonDeltaKm} km")   
+    #Fetching satellite data
+    beforeItem = createDataCube(searchSTAC(beforeDates, bbox), bbox)
+    afterItem = createDataCube(searchSTAC(afterDates, bbox), bbox)
     
-    beforeItem = createDataCube(
-       searchSTAC(beforeDates, bbox),
-       bbox)
-     
-    afterItem = createDataCube(
-    searchSTAC(afterDates, bbox),
-    bbox)
-    
+    #Converting data to correct format for inference
     beforeBatch = cubeToPrithviFormat(beforeItem, bbox)
     afterBatch = cubeToPrithviFormat(afterItem, bbox)
     
-    stride = int(floor(targetSize * overlapRatio))
-    inverseOverlapRatio = 1/overlapRatio
-
-    h, w = beforeBatch["pixel_values"].shape[-2:]
-    newH = targetSize * (floor(h/targetSize))
-    newW = targetSize * (floor(w/targetSize))
-
-    beforePixelValues = beforeBatch["pixel_values"][:, :, :, :newH, :newW]
-    afterPixelValues = afterBatch["pixel_values"][:, :, :, :newH, :newW]
-
-    columns = floor(newW / stride) - 1
-    rows = floor(newH / stride) - 1
+    #Extracting pixel values from batch
+    beforePixelValues = beforeBatch["pixel_values"] 
+    afterPixelValues = afterBatch["pixel_values"]
     
-    heatMapTiles = torch.zeros(rows, columns, gridSize, gridSize)
-    #0=Batch, 2=Channel, 1=Time, 3=Height, 4=Width
-    for i in range(rows):
-        for j in range(columns):
-            #(Batch, Channel, Time, Height, Width)
-            #start : stop : step
-            hStart = i * stride
-            hStop = hStart + targetSize
-            wStart = j * stride
-            wStop = wStart + targetSize
-            beforeTile = beforePixelValues[:, :, :, hStart:hStop, wStart:wStop]
-            afterTile = afterPixelValues[:, :, :, hStart:hStop, wStart:wStop]
+    B, C, T, H, W = beforePixelValues.shape 
+    device = beforePixelValues.device
 
-            beforeTileBatch = {
-                "pixel_values": beforeTile,           
-                "temporal_coords": beforeBatch["temporal_coords"],
-                "location_coords": beforeBatch["location_coords"]
-            }
-            afterTileBatch = {
-                "pixel_values": afterTile,           
-                "temporal_coords": afterBatch["temporal_coords"],
-                "location_coords": afterBatch["location_coords"]
-            }
-
-            beforeTileGrid = fullInference(beforeTileBatch, model=model)
-            afterTileGrid = fullInference(afterTileBatch, model=model)
-
-            heatMapTiles[i, j] = (CosineSimilarityMap(beforeTileGrid, afterTileGrid))
-
-    gridOverlap = int(gridSize * overlapRatio)
-    mergedHeatMap = torch.empty(0, int(((columns + 1)/inverseOverlapRatio) * gridSize))
-    for i in range(rows):
-        mergedHeatMapRow = torch.empty(gridSize, 0)
-        for j in range(columns):
-            currentTile = heatMapTiles[i, j]
-            if not (j == 0 or j == columns - 1):
-                print("j != 0 & j != columns - 1")
-                previousTile = heatMapTiles[i, j - 1]
-                nextTile = heatMapTiles[i, j + 1]
-                firstHalfMerged = (previousTile[..., gridOverlap:] + currentTile[..., :gridOverlap]) / inverseOverlapRatio
-            elif(j == 0):
-                print("j == 0")
-                nextTile = heatMapTiles[i, j + 1]
-                firstHalfMerged = currentTile[..., :gridOverlap]
-                secondHalfMerged = (currentTile[..., :gridOverlap] + nextTile[..., gridOverlap:]) / inverseOverlapRatio
-            else:
-                print("j == columns - 1")
-                previousTile = heatMapTiles[i, j - 1]
-                firstHalfMerged = (previousTile[..., gridOverlap:] + currentTile[..., :gridOverlap]) / inverseOverlapRatio
-                secondHalfMerged = currentTile[..., gridOverlap:]
-                
-            mergedTile = torch.cat((firstHalfMerged, secondHalfMerged), dim=1)
-
-            mergedHeatMapRow = torch.cat((mergedHeatMapRow[..., :-gridOverlap], mergedTile), dim=1)
-                
-        mergedHeatRowShape = mergedHeatMapRow.shape
-        print("Merging Row...")
-        mergedHeatMap = torch.cat((mergedHeatMap[:-gridOverlap,...], mergedHeatMapRow), dim=0)
-        mergedHeatMapShape = mergedHeatMap.shape
+    print(f"Original Image Shape: {H}x{W}")
     
+    #Calculate Stride and Padding
+    inverseOverlapRatio = 1 - overlapRatio
+    inputStride = int(floor(targetSize * inverseOverlapRatio))
+    scaleFactor = targetSize // gridSize
+    outputStride = inputStride // scaleFactor
+    
+    padH = (inputStride - (H - targetSize) % inputStride) % inputStride
+    padW = (inputStride - (W - targetSize) % inputStride) % inputStride
+    
+    beforePixelValues = F.pad(beforePixelValues, (0, padW, 0, padH))
+    afterPixelValues = F.pad(afterPixelValues, (0, padW, 0, padH))
+    
+    hPadded, wPadded = beforePixelValues.shape[-2:]
+    print(f"Padded Image Shape: {hPadded}x{wPadded} (Padding: H={padH}, W={padW})")
 
-    beforeRGB = tensorToRGB(beforePixelValues)
-    beforeRGBShape = beforeRGB.shape
-    afterRGB = tensorToRGB(afterPixelValues)
-    afterRGBShape = afterRGB.shape
-    changeMap = mergedHeatMap
+    #Unfold Pixels (Create Tiles)
+    beforeReshaped = beforePixelValues.view(B, C * T, hPadded, wPadded)
+    afterReshaped = afterPixelValues.view(B, C * T, hPadded, wPadded)
+
+    beforeUnfolded = F.unfold(beforeReshaped, kernel_size=targetSize, stride=inputStride)
+    afterUnfolded = F.unfold(afterReshaped, kernel_size=targetSize, stride=inputStride)
+
+    patchesNumber = beforeUnfolded.shape[-1]
+    
+    #Reshape: (Total_Tiles, C, T, H_tile, W_tile)
+    beforeTiles = beforeUnfolded.transpose(1, 2).reshape(-1, C, T, targetSize, targetSize)
+    afterTiles = afterUnfolded.transpose(1, 2).reshape(-1, C, T, targetSize, targetSize)
+
+    #Generate Correct Metadata (Lat/Lon) per Tile
+    nRows = (hPadded - targetSize) // inputStride + 1
+    nCols = (wPadded - targetSize) // inputStride + 1
+    
+    latCenters = torch.linspace(bbox[3], bbox[1], nRows, device=device)
+    lonCenters = torch.linspace(bbox[0], bbox[2], nCols, device=device)
+    
+    gridLat, gridLon = torch.meshgrid(latCenters, lonCenters, indexing='ij')
+    
+    flatLats = gridLat.flatten()
+    flatLons = gridLon.flatten()
+    locTiles = torch.stack((flatLats, flatLons), dim=1)
+    
+    if B > 1: locTiles = locTiles.repeat(B, 1)
+
+    #Extract temporal coords
+    beforeTempCoords = beforeBatch["temporal_coords"]
+    afterTempCoords = afterBatch["temporal_coords"]
+    
+    #Repeat for every patch
+    beforeTempTiles = beforeTempCoords.repeat_interleave(patchesNumber, dim=0)
+    afterTempTiles = afterTempCoords.repeat_interleave(patchesNumber, dim=0)
+
+    #Batched Inference Loop
+    heatmapPatches = []
+    totalTiles = beforeTiles.shape[0]
+
+    print(f"Running inference on {totalTiles} tiles. Batch size: {chunkSize}")
+
+    for i in tqdm(range(0, totalTiles, chunkSize)):
+        # Slice chunks
+        bChunk = beforeTiles[i:i+chunkSize]
+        aChunk = afterTiles[i:i+chunkSize]
+        locChunk = locTiles[i:i+chunkSize]
         
-    return beforeRGB, afterRGB, changeMap
+        # Get specific temporal coords for this chunk
+        beforeTempChunk = beforeTempTiles[i:i+chunkSize]
+        afterTempChunk = afterTempTiles[i:i+chunkSize]
+        
+        # Construct batches with CORRECT distinct dates
+        beforeTileBatch = {
+            "pixel_values": bChunk, 
+            "temporal_coords": beforeTempChunk, 
+            "location_coords": locChunk
+        }
+        afterTileBatch = {
+            "pixel_values": aChunk, 
+            "temporal_coords": afterTempChunk, 
+            "location_coords": locChunk
+        }
 
-# Tesla Giga Texas (Austin)
+        with torch.no_grad():
+            beforeGrid = fullInference(beforeTileBatch, model=model)
+            afterGrid = fullInference(afterTileBatch, model=model)
+            
+            # Calculate changeMapChunkilarity
+            changeMapChunk = CosineSimilarityMap(beforeGrid, afterGrid)
+        
+        heatmapPatches.append(changeMapChunk)
 
-bbox_giga_tx = [-97.670, 30.180, -97.565, 30.270]
+    #Concatenate: (Total_Tiles, 1, 14, 14)
+    allHeatmaps = torch.cat(heatmapPatches, dim=0)
 
-# Dates
-date_before = "2020-05-01/2020-06-01" # Site Clearing Starting
-date_after  = "2022-05-01/2022-06-01" # Fully Built
-"""
-bbox_saudi_arabia = [35.180, 28.100, 35.285, 28.190]
+    #Stitching (Fold)
+    #Flatten tiles to (B, C*K*K, Num_Patches) -> (B, 1*14*14, N) -> (B, 196, N)
+    patchesToFold = allHeatmaps.view(B, patchesNumber, -1).transpose(1, 2)
 
-# Dates
-date_before = "2020-10-01/2020-11-01" # Site Clearing Starting
-date_after  = "2025-01-01/2025-02-01" # Fully Built
+    outH = hPadded // scaleFactor
+    outW = wPadded // scaleFactor
+    
+    #Fold Sum
+    stitchedSum = F.fold(patchesToFold, output_size=(outH, outW), kernel_size=gridSize, stride=outputStride)
 
-bbox_lake_mead = [-114.450, 36.050, -114.340, 36.140]
+    #Fold Count (for averaging)
+    onesPatches = torch.ones_like(patchesToFold)
+    overlapCounter = F.fold(onesPatches, output_size=(outH, outW), kernel_size=gridSize, stride=outputStride)
+    
+    finalHeatmap = stitchedSum / (overlapCounter + 1e-8)
 
-# Dates
-date_before = "2017-06-01/2017-07-01" # High Water Levels
-date_after  = "2022-06-01/2022-07-01" # Significant Water Loss
+    #Crop & Return
+    validH = H // scaleFactor
+    validW = W // scaleFactor
+    finalHeatmap = finalHeatmap[:, :, :validH, :validW]
 
-# Diga di Occhito (Molise/Puglia Border)
-# Focusing on the central basin where the shoreline recedes significantly
-bbox_occhito = [14.9076, 41.5919, 14.9677, 41.6369]
+    beforeRGB = tensorToRGB(beforePixelValues[:, :, :, :H, :W])
+    afterRGB = tensorToRGB(afterPixelValues[:, :, :, :H, :W])
+    
+    print("Stitching complete.")
+    return beforeRGB, afterRGB, finalHeatmap
 
-# Dates: 2017 Drought Analysis
-# Before: Spring (Reservoir usually full)
-date_before = "2025-08-01/2025-09-01" 
+# --- EXECUTION BLOCK ---
+if __name__ == "__main__":
+    #bbox_giga_tx = [-97.670, 30.180, -97.565, 30.270]
+    #date_before = "2020-05-01/2020-06-01"
+    #date_after  = "2022-05-01/2022-06-01"
 
-# After: Peak of the 2017 Water Crisis (Reservoir nearly empty)
-date_after  = "2025-11-01/2025-12-01"
-"""
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # Expanded Greater Austin Area (Intersects 4 Sentinel-2 Tiles)
+    # Dimensions: ~60km x 60km
+    # Istanbul New Airport (Arnavutköy), Turkey
+    # ~30km box covering the airport and surrounding forest
+    """
+    bbox_istanbul_airport = [28.600, 41.200, 28.900, 41.350]
 
-model = BACKBONE_REGISTRY.build(
-    "prithvi_eo_v2_tiny_tl", pretrained=True,
-)
+    # Dates
+    date_before = "2015-06-01/2015-08-01"  # Early Construction (Mostly Forest/Soil)
+    date_after  = "2025-06-01/2025-08-01"  # Fully Operational (Concrete/Terminals)
+    
+    # East of Santa Cruz de la Sierra, Bolivia
+    # A large ~50km box to capture multiple "pinwheel" formations
+    bbox_bolivia_soy = [-62.600, -17.400, -62.150, -17.000]
 
-model.to(device)
+    # Dates (Dry Season to avoid clouds)
+    date_before = "2017-07-01/2017-08-01"
+    date_after  = "2023-07-01/2023-08-01"
+    """
+    # Indus River Valley near Larkana, Sindh, Pakistan
+    # Spans roughly 40km x 35km
+    bbox_pakistan_floods = [68.050, 27.400, 68.450, 27.700]
 
-beforeRGB, afterRGB, changeMap = stitchPipeline(bbox_giga_tx, date_before, date_after, model=model)
-VisualizeComparison(beforeRGB, afterRGB, changeMap)   
+    # Dates
+    date_before = "2021-09-01/2021-10-01"  # Dry Season / Pre-Monsoon
+    date_after  = "2022-09-01/2022-10-01"  # Peak Flooding
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+    model = BACKBONE_REGISTRY.build("prithvi_eo_v2_tiny_tl", pretrained=True)
+    model.to(device)
 
-
-     
+    beforeRGB, afterRGB, changeMap = stitchPipeline(bbox_pakistan_floods, date_before, date_after, model=model, overlapRatio=0)
+    VisualizeComparison(beforeRGB, afterRGB, changeMap)
