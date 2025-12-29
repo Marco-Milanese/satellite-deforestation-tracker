@@ -30,8 +30,16 @@ def cubeToPrithviFormat(dataCube, bbox):
         # Already computed (e.g. if you passed compute=True earlier)
         computed_data = dataCube
 
-
-    tensor = torch.from_numpy(dataCube.values).to(torch.float32) * 0.0001  # Scale 0-10000 to 0-1
+    date = pd.to_datetime(dataCube.time.values)
+    year = date.year
+    doy = date.dayofyear
+    temporal_coords = torch.Tensor([[[year[-1], doy[-1] - 1]]])  # [1, 1, 2]
+    print(F"DOY: {doy}, year: {year}")
+    if year < 2022 or (year == 2022 and doy < 25):
+        tensor = torch.from_numpy(dataCube.values).to(torch.float32) * 0.0001  # Scale 0-10000 to 0-1
+    else:
+        tensor = (torch.from_numpy(dataCube.values).to(torch.float32) * 0.0001) - 0.1   # Scale 0-10000 to 0-1
+        
     tensor = tensor.unsqueeze(0)
 
     # Permute to Prithvi Order: (Batch, Channel, Time, Height, Width)
@@ -39,10 +47,7 @@ def cubeToPrithviFormat(dataCube, bbox):
     # Target indices:  0=Batch, 2=Channel, 1=Time, 3=Height, 4=Width
     tensor = tensor.permute(0, 2, 1, 3, 4)    
     
-    date = pd.to_datetime(dataCube.time.values)
-    year = date.year
-    doy = date.dayofyear
-    temporal_coords = torch.Tensor([[[year[-1], doy[-1] - 1]]])  # [1, 1, 2]
+    
     
     min_lon, min_lat, max_lon, max_lat = bbox
     center_lat = (min_lat + max_lat) / 2.0

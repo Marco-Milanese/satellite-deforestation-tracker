@@ -2,6 +2,7 @@ import pystac_client
 import planetary_computer
 import stackstac
 from itertools import groupby
+import pandas as pd
 
 URL = "https://planetarycomputer.microsoft.com/api/stac/v1"
 SENTINEL_2A = "sentinel-2-l2a"
@@ -15,7 +16,7 @@ def pcAuthenticator(url=URL):
     )
     return catalog
 
-def searchSTAC(timeRange, bbox, catalog = pcAuthenticator(), collection = SENTINEL_2A, cloudCoverThreshold=5, minCoverage=80):
+def searchSTAC(timeRange, bbox, catalog = pcAuthenticator(), collection = SENTINEL_2A, cloudCoverThreshold=20, minCoverage=50):
     """Searches the STAC API for Sentinel-2 L2A images within the specified time range and bounding box.
     
     Args:
@@ -67,6 +68,10 @@ def createDataCube(item, bbox, bands = PRITHVI_BANDS, resolution=10, compute = F
     espgCode = int(proj.split(":")[-1])
     print(f"Using projection EPSG:{espgCode}")
 
+    dates = sorted([i.datetime for i in item])
+    representative_date = dates[len(dates) // 2]
+    print(f"Mosaic Representative Date: {representative_date.date()}")
+
     dataCube = stackstac.stack(
         item,
         assets = bands,
@@ -84,7 +89,7 @@ def createDataCube(item, bbox, bands = PRITHVI_BANDS, resolution=10, compute = F
 
     # 4. Add 'Time' dimension back 
     # (Models usually expect a Batch/Time dimension, e.g., (1, C, H, W))
-    dataCube = mosaic.expand_dims(dim="time")
+    dataCube = mosaic.expand_dims(time=[pd.Timestamp(representative_date)])
     if compute:
         dataCube = dataCube.compute()
     

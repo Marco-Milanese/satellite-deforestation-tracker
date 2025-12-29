@@ -124,6 +124,9 @@ def stitchPipeline(bbox, beforeDates, afterDates, model="prithvi_eo_v2_tiny_tl",
             "temporal_coords": afterTempChunk, 
             "location_coords": locChunk
         }
+        print(f"Time in BEFORE: {beforeTileBatch["temporal_coords"]}")
+        print(f"Time in AFTER: {afterTileBatch["temporal_coords"]}")
+
 
         with torch.no_grad():
             beforeGrid = fullInference(beforeTileBatch, model=model)
@@ -174,13 +177,13 @@ if __name__ == "__main__":
     # Dimensions: ~60km x 60km
     # Istanbul New Airport (Arnavutköy), Turkey
     # ~30km box covering the airport and surrounding forest
-    """
+    
     bbox_istanbul_airport = [28.600, 41.200, 28.900, 41.350]
 
     # Dates
     date_before = "2015-06-01/2015-08-01"  # Early Construction (Mostly Forest/Soil)
-    date_after  = "2025-06-01/2025-08-01"  # Fully Operational (Concrete/Terminals)
-    
+    date_after  = "2022-06-01/2022-08-01"  # Fully Operational (Concrete/Terminals)
+    """
     # East of Santa Cruz de la Sierra, Bolivia
     # A large ~50km box to capture multiple "pinwheel" formations
     bbox_bolivia_soy = [-62.600, -17.400, -62.150, -17.000]
@@ -188,7 +191,7 @@ if __name__ == "__main__":
     # Dates (Dry Season to avoid clouds)
     date_before = "2017-07-01/2017-08-01"
     date_after  = "2023-07-01/2023-08-01"
-    """
+    
     # Indus River Valley near Larkana, Sindh, Pakistan
     # Spans roughly 40km x 35km
     bbox_pakistan_floods = [68.050, 27.400, 68.450, 27.700]
@@ -196,10 +199,21 @@ if __name__ == "__main__":
     # Dates
     date_before = "2021-09-01/2021-10-01"  # Dry Season / Pre-Monsoon
     date_after  = "2022-09-01/2022-10-01"  # Peak Flooding
+    
+
+   # Lund, Sweden (Centered on 55.6794, 13.1771)
+    # Approx 5km x 5km
+    bbox_lund = [13.1371, 55.6569, 13.2171, 55.7019]
+
+    # Dates
+    date_before = "2016-06-01/2016-07-01"
+    date_after  = "2025-06-01/2025-07-01"
+    """    
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     model = BACKBONE_REGISTRY.build("prithvi_eo_v2_tiny_tl", pretrained=True)
     model.to(device)
 
-    beforeRGB, afterRGB, changeMap = stitchPipeline(bbox_pakistan_floods, date_before, date_after, model=model, overlapRatio=0)
+    beforeRGB, afterRGB, changeMap = stitchPipeline(bbox_istanbul_airport, date_before, date_after, model=model, overlapRatio=0)
     VisualizeComparison(beforeRGB, afterRGB, changeMap)
