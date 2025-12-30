@@ -1,6 +1,5 @@
 from src.vision.prithviInference import fullInference
-from src.dataLoaders.sentinelDataFetcher import createDataCube, searchSTAC
-from src.vision.utils.visionUtils import cubeToPrithviFormat, tensorToRGB, VisualizeComparison
+from src.vision.utils.visionUtils import tensorToRGB, VisualizeComparison, fetchAndConvert
 import torch
 import torch.nn.functional as F
 from math import floor
@@ -23,19 +22,14 @@ def CosineSimilarityMap(before, after):
     return changeMap.unsqueeze(1)
 
 
-def stitchPipeline(bbox, beforeDates, afterDates, model="prithvi_eo_v2_tiny_tl", gridSize=14, targetSize=224, overlapRatio=0.5, chunkSize = 16):
+def stitchPipeline(bbox, batches, model="prithvi_eo_v2_tiny_tl", gridSize=14, targetSize=224, overlapRatio=0.5, chunkSize = 16):
     """
     Optimized pipeline for large satellite imagery using Fold/Unfold and Coordinate Interpolation.
     """
     print(f"Analysing area: [{bbox}]")
     
-    #Fetching satellite data
-    beforeItem = createDataCube(searchSTAC(beforeDates, bbox), bbox)
-    afterItem = createDataCube(searchSTAC(afterDates, bbox), bbox)
-    
-    #Converting data to correct format for inference
-    beforeBatch = cubeToPrithviFormat(beforeItem, bbox)
-    afterBatch = cubeToPrithviFormat(afterItem, bbox)
+    beforeBatch = batches[0]
+    afterBatch = batches[1]
     
     #Extracting pixel values from batch
     beforePixelValues = beforeBatch["pixel_values"] 
@@ -124,10 +118,6 @@ def stitchPipeline(bbox, beforeDates, afterDates, model="prithvi_eo_v2_tiny_tl",
             "temporal_coords": afterTempChunk, 
             "location_coords": locChunk
         }
-        print(f"Time in BEFORE: {beforeTileBatch["temporal_coords"]}")
-        print(f"Time in AFTER: {afterTileBatch["temporal_coords"]}")
-
-
         with torch.no_grad():
             beforeGrid = fullInference(beforeTileBatch, model=model)
             afterGrid = fullInference(afterTileBatch, model=model)
@@ -177,13 +167,13 @@ if __name__ == "__main__":
     # Dimensions: ~60km x 60km
     # Istanbul New Airport (Arnavutköy), Turkey
     # ~30km box covering the airport and surrounding forest
-    
+    """
     bbox_istanbul_airport = [28.600, 41.200, 28.900, 41.350]
 
     # Dates
     date_before = "2015-06-01/2015-08-01"  # Early Construction (Mostly Forest/Soil)
     date_after  = "2022-06-01/2022-08-01"  # Fully Operational (Concrete/Terminals)
-    """
+    
     # East of Santa Cruz de la Sierra, Bolivia
     # A large ~50km box to capture multiple "pinwheel" formations
     bbox_bolivia_soy = [-62.600, -17.400, -62.150, -17.000]
@@ -200,20 +190,51 @@ if __name__ == "__main__":
     date_before = "2021-09-01/2021-10-01"  # Dry Season / Pre-Monsoon
     date_after  = "2022-09-01/2022-10-01"  # Peak Flooding
     
+    
 
-   # Lund, Sweden (Centered on 55.6794, 13.1771)
-    # Approx 5km x 5km
-    bbox_lund = [13.1371, 55.6569, 13.2171, 55.7019]
+    # Tierra Blanca Mennonite Colony (Loreto, Peru)
+    # A massive, solid block of deforestation appearing deep in the jungle.
+    # Novo Progresso / Jamanxim National Forest Border (Pará, Brazil)
+    # The frontline of the BR-163 deforestation arc.
+    bbox_novo_progresso = [-55.60, -7.30, -55.40, -7.10]
 
     # Dates
+    # Before: Pre-"Day of Fire" surge.
     date_before = "2016-06-01/2016-07-01"
-    date_after  = "2025-06-01/2025-07-01"
-    """    
+
+    # After: Post-surge devastation.
+    date_after  = "2025-06-01/2025-07-01"   
+    
+
+    # East of Santa Cruz, Bolivia (The "Pinwheel" Frontiers)
+    # A larger 20km x 20km box to ensure you catch the full geometric shapes.
+    bbox_bolivia_pinwheel = [-62.650, -16.850, -62.450, -16.650]
+
+    # Dates (Dry Season is critical for Bolivia)
+    # Before: 2016 (Early expansion)
+    date_before = "2016-07-01/2016-08-01"
+
+    # After: 2021 (Mature massive clearings)
+    date_after  = "2021-07-01/2021-08-01"
+    """
+
+    # Lund, Sweden (Centered on 55.6794, 13.1771)
+    # Approx 5km x 5km
+    # San Julián, Santa Cruz, Bolivia
+    bbox_bolivia = [-62.70, -17.00, -62.50, -16.80]
+
+    # Before: Mostly pristine forest (Landsat 5)
+    date_before = "1990-07-01/1990-09-01"
+
+    # After: Industrial agriculture (Landsat 9)
+    date_after  = "2023-07-01/2023-09-01"
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     model = BACKBONE_REGISTRY.build("prithvi_eo_v2_tiny_tl", pretrained=True)
     model.to(device)
 
-    beforeRGB, afterRGB, changeMap = stitchPipeline(bbox_istanbul_airport, date_before, date_after, model=model, overlapRatio=0)
+    batches = fetchAndConvert(bbox_bolivia, date_before, date_after, "LANDSAT")
+
+    beforeRGB, afterRGB, changeMap = stitchPipeline(bbox_bolivia, batches, model=model, overlapRatio=0.5)
     VisualizeComparison(beforeRGB, afterRGB, changeMap)
