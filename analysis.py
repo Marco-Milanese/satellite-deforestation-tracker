@@ -216,7 +216,7 @@ if __name__ == "__main__":
 
     # After: 2021 (Mature massive clearings)
     date_after  = "2021-07-01/2021-08-01"
-    """
+    
 
     # Lund, Sweden (Centered on 55.6794, 13.1771)
     # Approx 5km x 5km
@@ -228,13 +228,32 @@ if __name__ == "__main__":
 
     # After: Industrial agriculture (Landsat 9)
     date_after  = "2023-07-01/2023-09-01"
+    
+        # Cumbre Vieja Lava Flow (La Palma, Canary Islands)
+    # Captures the main flow destroying Todoque and reaching the sea.
+    bbox_la_palma = [-17.940, 28.590, -17.860, 28.640]
+
+    # Before: Towns and Banana Plantations
+    date_before = "2020-05-01/2020-08-01"
+
+    # After: The Black Lava Scar
+    date_after  = "2022-05-01/2022-08-01"
+    """
+    # Bounding Box (Settala/Milan, Italy)
+   # Bounding Box (Eagle Mountain, Utah)
+    # Bounding Box (Fredericia, Denmark)
+    # Google / AWS Data Center Cluster (New Albany, Ohio)
+    # Captures the massive construction along Beech Rd.
+    bbox = [31.50, 23.00, 31.90, 23.50]
+    date_before = "1998-01-01/1998-04-01"
+    date_after = "2002-01-01/2002-04-01"
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     model = BACKBONE_REGISTRY.build("prithvi_eo_v2_tiny_tl", pretrained=True)
     model.to(device)
 
-    batches = fetchAndConvert(bbox_bolivia, date_before, date_after, "LANDSAT")
+    batches = fetchAndConvert(bbox, date_before, date_after, "LANDSAT")
 
-    beforeRGB, afterRGB, changeMap = stitchPipeline(bbox_bolivia, batches, model=model, overlapRatio=0.5)
+    beforeRGB, afterRGB, changeMap = stitchPipeline(bbox, batches, model=model, overlapRatio=0.5)
     VisualizeComparison(beforeRGB, afterRGB, changeMap)

@@ -1,0 +1,412 @@
+{
+  "sites": [
+    {
+      "category": "deforestation",
+      "name": "The Fishbone (Rondonia, Brazil)",
+      "description": "The archetypal Amazon deforestation pattern spreading from Jaru.",
+      "bbox": [-62.55, -10.55, -62.35, -10.35],
+      "date_before": "1990-06-01/1990-09-01",
+      "date_after": "2023-06-01/2023-09-01"
+    },
+    {
+      "category": "deforestation",
+      "name": "Soy Pinwheels (Santa Cruz, Bolivia)",
+      "description": "Massive radial agricultural clearing patterns in San Julian.",
+      "bbox": [-62.70, -17.00, -62.50, -16.80],
+      "date_before": "1990-07-01/1990-09-01",
+      "date_after": "2023-07-01/2023-09-01"
+    },
+    {
+      "category": "deforestation",
+      "name": "Gran Chaco Vanishing (Paraguay)",
+      "description": "Rapid conversion of dry thorn forest to square cattle ranches.",
+      "bbox": [-60.60, -22.40, -60.40, -22.20],
+      "date_before": "1992-08-01/1992-10-01",
+      "date_after": "2023-08-01/2023-10-01"
+    },
+    {
+      "category": "deforestation",
+      "name": "Palm Oil Expansion (Kalimantan, Indonesia)",
+      "description": "Conversion of Borneo rainforest to palm oil monoculture.",
+      "bbox": [114.50, -2.50, 114.70, -2.30],
+      "date_before": "2000-06-01/2000-09-01",
+      "date_after": "2020-06-01/2020-09-01"
+    },
+    {
+      "category": "deforestation",
+      "name": "Mennonite Colony (Masisea, Peru)",
+      "description": "A new, isolated clearing deep in the Peruvian Amazon.",
+      "bbox": [-74.48, -8.65, -74.38, -8.55],
+      "date_before": "2015-06-01/2015-08-01",
+      "date_after": "2022-06-01/2022-08-01"
+    },
+    {
+      "category": "deforestation",
+      "name": "Xingu Indigenous Park Border (Brazil)",
+      "description": "Stark contrast between protected territory and outside agriculture.",
+      "bbox": [-53.10, -11.60, -52.90, -11.40],
+      "date_before": "2000-06-01/2000-08-01",
+      "date_after": "2023-06-01/2023-08-01"
+    },
+    {
+      "category": "deforestation",
+      "name": "Congo Basin Roads (DRC)",
+      "description": "Slash and burn agriculture expanding from new logging roads.",
+      "bbox": [25.50, 0.30, 25.70, 0.50],
+      "date_before": "2010-01-01/2010-03-01",
+      "date_after": "2023-01-01/2023-03-01"
+    },
+    {
+      "category": "deforestation",
+      "name": "Rubber Plantations (Cambodia)",
+      "description": "Total clearing of Snoul Wildlife Sanctuary for rubber.",
+      "bbox": [106.40, 12.00, 106.60, 12.20],
+      "date_before": "2009-01-01/2009-03-01",
+      "date_after": "2018-01-01/2018-03-01"
+    },
+    {
+      "category": "deforestation",
+      "name": "Gold Mining Arc (Madre de Dios, Peru)",
+      "description": "Deforestation caused by illegal gold mining (distinct sandy color).",
+      "bbox": [-70.55, -12.95, -70.45, -12.85],
+      "date_before": "2010-06-01/2010-09-01",
+      "date_after": "2022-06-01/2022-09-01"
+    },
+    {
+      "category": "deforestation",
+      "name": "Vancouver Island Logging (Canada)",
+      "description": "Patchwork clear-cutting in temperate rainforests.",
+      "bbox": [-125.10, 49.70, -124.90, 49.90],
+      "date_before": "2005-06-01/2005-09-01",
+      "date_after": "2023-06-01/2023-09-01"
+    },
+
+
+    {
+      "category": "datacenter",
+      "name": "Cloud Capital (New Albany, Ohio)",
+      "description": "Massive Google and AWS campuses replacing farmland.",
+      "bbox": [-82.80, 40.04, -82.75, 40.08],
+      "date_before": "2018-06-01/2018-09-01",
+      "date_after": "2023-06-01/2023-09-01"
+    },
+    {
+      "category": "datacenter",
+      "name": "Meta Eagle Mountain (Utah, USA)",
+      "description": "Huge Facebook datacenter built in the high desert.",
+      "bbox": [-112.08, 40.31, -112.04, 40.34],
+      "date_before": "2017-06-01/2017-09-01",
+      "date_after": "2022-06-01/2022-09-01"
+    },
+    {
+      "category": "datacenter",
+      "name": "Microsoft Project Osmium (Iowa, USA)",
+      "description": "Microsoft Azure expansion in West Des Moines.",
+      "bbox": [-93.83, 41.48, -93.79, 41.52],
+      "date_before": "2015-06-01/2015-09-01",
+      "date_after": "2021-06-01/2021-09-01"
+    },
+    {
+      "category": "datacenter",
+      "name": "Data Center Alley (Loudoun, Virginia)",
+      "description": "The densest concentration of datacenters in the world (Ashburn).",
+      "bbox": [-77.49, 39.01, -77.45, 39.04],
+      "date_before": "2014-06-01/2014-09-01",
+      "date_after": "2023-06-01/2023-09-01"
+    },
+    {
+      "category": "datacenter",
+      "name": "Meta Prineville (Oregon, USA)",
+      "description": "Large plateau clearing for Facebook's first custom datacenter.",
+      "bbox": [-120.90, 44.30, -120.85, 44.34],
+      "date_before": "2010-06-01/2010-09-01",
+      "date_after": "2022-06-01/2022-09-01"
+    },
+    {
+      "category": "datacenter",
+      "name": "Google Council Bluffs (Iowa, USA)",
+      "description": "One of Google's largest global facilities.",
+      "bbox": [-95.88, 41.22, -95.84, 41.25],
+      "date_before": "2012-06-01/2012-09-01",
+      "date_after": "2023-06-01/2023-09-01"
+    },
+    {
+      "category": "datacenter",
+      "name": "Microsoft Wisconsin (Mt Pleasant, WI)",
+      "description": "Active construction on the former Foxconn site.",
+      "bbox": [-87.95, 42.685, -87.92, 42.705],
+      "date_before": "2021-06-01/2021-09-01",
+      "date_after": "2025-06-01/2025-09-01"
+    },
+    {
+      "category": "datacenter",
+      "name": "Meta Luleå (Sweden)",
+      "description": "Datacenter construction near the Arctic Circle.",
+      "bbox": [22.10, 65.60, 22.15, 65.63],
+      "date_before": "2011-06-01/2011-08-01",
+      "date_after": "2018-06-01/2018-08-01"
+    },
+    {
+      "category": "datacenter",
+      "name": "AWS Zaragoza (Spain)",
+      "description": "New Amazon Web Services region in Aragon.",
+      "bbox": [-0.85, 41.60, -0.80, 41.65],
+      "date_before": "2020-06-01/2020-09-01",
+      "date_after": "2023-06-01/2023-09-01"
+    },
+    {
+      "category": "datacenter",
+      "name": "Google Quilicura (Chile)",
+      "description": "Google's expansion in Latin America.",
+      "bbox": [-70.75, -33.38, -70.72, -33.36],
+      "date_before": "2012-01-01/2012-03-01",
+      "date_after": "2020-01-01/2020-03-01"
+    },
+
+
+    {
+      "category": "fire",
+      "name": "Sierra de la Culebra (Spain)",
+      "description": "Massive wildfire in Zamora, June 2022.",
+      "bbox": [-6.55, 41.75, -6.00, 42.05],
+      "date_before": "2021-06-01/2021-08-01",
+      "date_after": "2022-09-01/2022-10-01"
+    },
+    {
+      "category": "fire",
+      "name": "La Palma Volcano (Canary Islands)",
+      "description": "Cumbre Vieja eruption covering towns in black lava.",
+      "bbox": [-17.94, 28.59, -17.86, 28.64],
+      "date_before": "2020-05-01/2020-08-01",
+      "date_after": "2022-05-01/2022-08-01"
+    },
+    {
+      "category": "fire",
+      "name": "Camp Fire (Paradise, California)",
+      "description": "The deadliest wildfire in California history (Nov 2018).",
+      "bbox": [-121.65, 39.70, -121.50, 39.85],
+      "date_before": "2018-06-01/2018-08-01",
+      "date_after": "2019-06-01/2019-08-01"
+    },
+    {
+      "category": "fire",
+      "name": "Black Summer (Kangaroo Island, Australia)",
+      "description": "Devastating bushfires of 2019-2020.",
+      "bbox": [136.60, -36.00, 136.90, -35.80],
+      "date_before": "2019-01-01/2019-03-01",
+      "date_after": "2020-03-01/2020-05-01"
+    },
+    {
+      "category": "fire",
+      "name": "Lahaina Fire (Maui, Hawaii)",
+      "description": "Historic fire that destroyed Lahaina town in Aug 2023.",
+      "bbox": [-156.70, 20.86, -156.65, 20.90],
+      "date_before": "2023-05-01/2023-07-01",
+      "date_after": "2023-09-01/2023-10-01"
+    },
+    {
+      "category": "fire",
+      "name": "Fort McMurray Fire (Canada)",
+      "description": "The 'Beast' fire of 2016.",
+      "bbox": [-111.45, 56.65, -111.30, 56.75],
+      "date_before": "2015-06-01/2015-08-01",
+      "date_after": "2016-08-01/2016-10-01"
+    },
+    {
+      "category": "fire",
+      "name": "Evia Island (Greece)",
+      "description": "Massive wildfires in August 2021.",
+      "bbox": [23.25, 38.80, 23.45, 38.95],
+      "date_before": "2020-07-01/2020-09-01",
+      "date_after": "2021-09-01/2021-10-01"
+    },
+    {
+      "category": "fire",
+      "name": "Pantanal Wetlands (Brazil)",
+      "description": "Record-breaking fires in the wetlands (2020).",
+      "bbox": [-57.50, -17.50, -57.00, -17.00],
+      "date_before": "2019-06-01/2019-09-01",
+      "date_after": "2020-10-01/2020-12-01"
+    },
+    {
+      "category": "fire",
+      "name": "Dixie Fire (California)",
+      "description": "Largest single fire in CA history (2021).",
+      "bbox": [-121.20, 40.00, -121.00, 40.20],
+      "date_before": "2020-06-01/2020-09-01",
+      "date_after": "2021-10-01/2021-11-01"
+    },
+    {
+      "category": "fire",
+      "name": "El Pont de Vilomara (Catalonia, Spain)",
+      "description": "Significant fire near residential areas in 2022.",
+      "bbox": [1.85, 41.68, 1.95, 41.72],
+      "date_before": "2021-06-01/2021-08-01",
+      "date_after": "2022-08-01/2022-10-01"
+    },
+
+
+    {
+      "category": "glacier",
+      "name": "Breidamerkurjokull (Iceland)",
+      "description": "Retreating glacier tongue feeding Jokulsarlon lagoon.",
+      "bbox": [-16.30, 64.02, -16.10, 64.12],
+      "date_before": "1990-07-01/1990-09-01",
+      "date_after": "2023-07-01/2023-09-01"
+    },
+    {
+      "category": "glacier",
+      "name": "Columbia Glacier (Alaska)",
+      "description": "One of the fastest retreating glaciers in the world.",
+      "bbox": [-147.20, 61.10, -147.00, 61.25],
+      "date_before": "1985-07-01/1985-09-01",
+      "date_after": "2020-07-01/2020-09-01"
+    },
+    {
+      "category": "glacier",
+      "name": "Rhone Glacier (Switzerland)",
+      "description": "Dramatic retreat of a famous Alpine glacier.",
+      "bbox": [8.35, 46.57, 8.42, 46.62],
+      "date_before": "1990-08-01/1990-09-01",
+      "date_after": "2022-08-01/2022-09-01"
+    },
+    {
+      "category": "glacier",
+      "name": "Muir Glacier (Alaska)",
+      "description": "Complete disappearance of the glacier from the Muir Inlet.",
+      "bbox": [-136.40, 59.05, -136.30, 59.15],
+      "date_before": "1990-07-01/1990-09-01",
+      "date_after": "2020-07-01/2020-09-01"
+    },
+    {
+      "category": "glacier",
+      "name": "Pasterze Glacier (Austria)",
+      "description": "Shrinking of Austria's largest glacier below the Grossglockner.",
+      "bbox": [12.70, 47.06, 12.75, 47.10],
+      "date_before": "1995-08-01/1995-09-01",
+      "date_after": "2022-08-01/2022-09-01"
+    },
+    {
+      "category": "glacier",
+      "name": "Mer de Glace (France)",
+      "description": "Visible thinning of the Mont Blanc massif glacier.",
+      "bbox": [6.90, 45.90, 6.95, 45.95],
+      "date_before": "1990-08-01/1990-09-01",
+      "date_after": "2022-08-01/2022-09-01"
+    },
+    {
+      "category": "glacier",
+      "name": "Gangotri Glacier (India)",
+      "description": "Source of the Ganges, retreating visibly.",
+      "bbox": [79.05, 30.90, 79.15, 31.00],
+      "date_before": "1990-09-01/1990-10-01",
+      "date_after": "2021-09-01/2021-10-01"
+    },
+    {
+      "category": "glacier",
+      "name": "Grey Glacier (Patagonia, Chile)",
+      "description": "Calving and retreat in Torres del Paine.",
+      "bbox": [-73.15, -51.05, -73.00, -50.95],
+      "date_before": "1995-01-01/1995-03-01",
+      "date_after": "2022-01-01/2022-03-01"
+    },
+    {
+      "category": "glacier",
+      "name": "Sólheimajökull (Iceland)",
+      "description": "Accessible glacier that has retreated inland.",
+      "bbox": [-19.35, 63.53, -19.30, 63.57],
+      "date_before": "2000-07-01/2000-09-01",
+      "date_after": "2023-07-01/2023-09-01"
+    },
+    {
+      "category": "glacier",
+      "name": "Upsala Glacier (Argentina)",
+      "description": "Massive retreat in Los Glaciares National Park.",
+      "bbox": [-73.35, -50.00, -73.20, -49.85],
+      "date_before": "1990-01-01/1990-03-01",
+      "date_after": "2021-01-01/2021-03-01"
+    },
+
+
+    {
+      "category": "water",
+      "name": "Aral Sea (Uzbekistan/Kazakhstan)",
+      "description": "The most famous example of water loss in history.",
+      "bbox": [59.00, 44.50, 60.50, 45.50],
+      "date_before": "1990-06-01/1990-09-01",
+      "date_after": "2020-06-01/2020-09-01"
+    },
+    {
+      "category": "water",
+      "name": "Lake Mead (Nevada, USA)",
+      "description": "Historic lows showing the white 'bathtub ring'.",
+      "bbox": [-114.45, 36.00, -114.30, 36.20],
+      "date_before": "2000-05-01/2000-08-01",
+      "date_after": "2022-05-01/2022-08-01"
+    },
+    {
+      "category": "water",
+      "name": "Belo Monte Dam (Brazil)",
+      "description": "Massive flooding of rainforest to create a reservoir.",
+      "bbox": [-51.90, -3.50, -51.70, -3.30],
+      "date_before": "2012-06-01/2012-09-01",
+      "date_after": "2017-06-01/2017-09-01"
+    },
+    {
+      "category": "water",
+      "name": "Sau Reservoir (Spain)",
+      "description": "Drought emptied the lake, revealing submerged ruins.",
+      "bbox": [2.38, 41.96, 2.41, 41.99],
+      "date_before": "2020-03-01/2020-05-01",
+      "date_after": "2023-03-01/2023-05-01"
+    },
+    {
+      "category": "water",
+      "name": "Great Salt Lake (Utah, USA)",
+      "description": "Rapid shrinking of the lake bed exposing toxic dust.",
+      "bbox": [-112.50, 41.00, -112.20, 41.30],
+      "date_before": "1990-06-01/1990-09-01",
+      "date_after": "2022-06-01/2022-09-01"
+    },
+    {
+      "category": "water",
+      "name": "Lake Urmia (Iran)",
+      "description": "Near total disappearance of a massive saltwater lake.",
+      "bbox": [45.00, 37.50, 45.80, 38.00],
+      "date_before": "1995-06-01/1995-09-01",
+      "date_after": "2023-06-01/2023-09-01"
+    },
+    {
+      "category": "water",
+      "name": "Lake Aculeo (Chile)",
+      "description": "A lake that completely disappeared in 2018.",
+      "bbox": [-70.95, -33.85, -70.88, -33.80],
+      "date_before": "2010-01-01/2010-03-01",
+      "date_after": "2019-01-01/2019-03-01"
+    },
+    {
+      "category": "water",
+      "name": "Three Gorges Dam (China)",
+      "description": "Creation of the world's largest reservoir.",
+      "bbox": [110.90, 30.80, 111.10, 31.00],
+      "date_before": "2000-05-01/2000-08-01",
+      "date_after": "2010-05-01/2010-08-01"
+    },
+    {
+      "category": "water",
+      "name": "Toshka Lakes (Egypt)",
+      "description": "Appearance of new lakes in the Sahara desert from Nile overflow.",
+      "bbox": [31.50, 23.00, 31.90, 23.50],
+      "date_before": "1998-01-01/1998-04-01",
+      "date_after": "2002-01-01/2002-04-01"
+    },
+    {
+      "category": "water",
+      "name": "Lake Poopo (Bolivia)",
+      "description": "Once Bolivia's second largest lake, now mostly dry.",
+      "bbox": [-67.30, -18.80, -66.90, -18.40],
+      "date_before": "2013-02-01/2013-05-01",
+      "date_after": "2016-02-01/2016-05-01"
+    }
+  ]
+}

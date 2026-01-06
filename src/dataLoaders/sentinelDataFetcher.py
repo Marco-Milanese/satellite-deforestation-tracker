@@ -17,7 +17,7 @@ def pcAuthenticator(url=URL):
     )
     return catalog
 
-def searchSTAC(timeRange, bbox, catalog = pcAuthenticator(), collection = LANDSAT, cloudCoverThreshold=30, minCoverage=5, nImages = 5):
+def searchSTAC(timeRange, bbox, catalog = pcAuthenticator(), collection = LANDSAT, cloudCoverThreshold=15, minCoverage=5, nImages = 3):
     """Searches the STAC API for Sentinel-2 L2A images within the specified time range and bounding box.
     
     Args:
@@ -65,7 +65,7 @@ def searchSTAC(timeRange, bbox, catalog = pcAuthenticator(), collection = LANDSA
 
     return best_items
 
-def createLandsatDataCube(items, bbox, resolution=30):
+def createLandsatDataCube(items, bbox, resolution=10):
     """
     Downloads and stitches Landsat 8/9 data.
     - Native Resolution: 30m

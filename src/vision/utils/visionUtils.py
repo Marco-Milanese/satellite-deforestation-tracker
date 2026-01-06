@@ -22,8 +22,8 @@ def fetchAndConvert(bbox, beforeDates, afterDates, collection="LANDSAT"):
             beforeBatch = cubeToPrithviFormatLandsat(beforeItem, bbox)
             afterBatch = cubeToPrithviFormatLandsat(afterItem, bbox)
         case "SENTINEL_2A":
-            beforeItem = createLandsatDataCube(searchSTAC(beforeDates, bbox, collection=SENTINEL_2A), bbox)
-            afterItem = createLandsatDataCube(searchSTAC(afterDates, bbox, collection=SENTINEL_2A), bbox)
+            beforeItem = createDataCube(searchSTAC(beforeDates, bbox, collection=SENTINEL_2A), bbox)
+            afterItem = createDataCube(searchSTAC(afterDates, bbox, collection=SENTINEL_2A), bbox)
                 
                 #Converting data to correct format for inference
             beforeBatch = cubeToPrithviFormat(beforeItem, bbox)
