@@ -172,16 +172,17 @@ if __name__ == "__main__":
     """
     
    
-    bbox = [-121.20, 40.00, -121.00, 40.20]
-    date_before = "2020-06-01/2020-09-01"
-    date_after = "2021-10-01/2021-11-01"
-    
+    bbox = [-16.30, 64.02, -16.10, 64.12]
+    date_before = "1993-07-01/1993-09-01"
+    date_after = "2023-07-01/2023-09-01"
+
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     model = BACKBONE_REGISTRY.build("prithvi_eo_v2_tiny_tl", pretrained=True)
     model.to(device)
 
-    batches = fetchAndConvert(bbox, date_before, date_after, "SENTINEL_2A")
+    batches = fetchAndConvert(bbox, date_before, date_after, "LANDSAT")
 
     beforeRGB, afterRGB, changeMap = stitchPipeline(bbox, batches, model=model, overlapRatio=0.5)
     VisualizeComparison(beforeRGB, afterRGB, changeMap)

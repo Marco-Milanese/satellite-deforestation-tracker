@@ -15,8 +15,8 @@ def fetchAndConvert(bbox, beforeDates, afterDates, collection="LANDSAT"):
 
     match collection:
         case "LANDSAT":
-            beforeItem = createDataCube(searchSTAC(beforeDates, bbox, collection=LANDSAT), bbox)
-            afterItem = createDataCube(searchSTAC(afterDates, bbox, collection=LANDSAT), bbox)
+            beforeItem = createLandsatDataCube(searchSTAC(beforeDates, bbox, collection=LANDSAT), bbox)
+            afterItem = createLandsatDataCube(searchSTAC(afterDates, bbox, collection=LANDSAT), bbox)
             
             #Converting data to correct format for inference
             beforeBatch = cubeToPrithviFormatLandsat(beforeItem, bbox)
@@ -26,8 +26,8 @@ def fetchAndConvert(bbox, beforeDates, afterDates, collection="LANDSAT"):
             afterItem = createDataCube(searchSTAC(afterDates, bbox, collection=SENTINEL_2A), bbox, collection="SENTINEL_2A")
                 
                 #Converting data to correct format for inference
-            beforeBatch = cubeToPrithviFormat(beforeItem, bbox)
-            afterBatch = cubeToPrithviFormat(afterItem, bbox)
+            beforeBatch = cubeToPrithviFormat(beforeItem, bbox, collection="SENTINEL_2A")
+            afterBatch = cubeToPrithviFormat(afterItem, bbox, collection="SENTINEL_2A")
 
     return beforeBatch, afterBatch
 
@@ -85,7 +85,7 @@ def cubeToPrithviFormatLandsat(dataCube, bbox):
         "location_coords": location_coords
     }
 
-def cubeToPrithviFormat(dataCube, bbox):
+def cubeToPrithviFormat(dataCube, bbox, collection = "LANDSAT"):
     """
     Converts the stackstac DataCube into the exact dictionary structure 
     required by Prithvi / TerraTorch.
@@ -102,28 +102,33 @@ def cubeToPrithviFormat(dataCube, bbox):
         print(f"Downloading and stitching tiles for bbox: {bbox}...")
         with ProgressBar():
             # .compute() triggers the actual download & stitch
-            computed_data = dataCube.compute() 
+            dataCube = dataCube.compute() 
     else:
         # Already computed (e.g. if you passed compute=True earlier)
-        computed_data = dataCube
+        print("DataCube already computed")
 
     date = pd.to_datetime(dataCube.time.values)
     year = date.year
     doy = date.dayofyear
     temporal_coords = torch.Tensor([[[year[-1], doy[-1] - 1]]])  # [1, 1, 2]
     print(F"DOY: {doy}, year: {year}")
-    if year < 2022 or (year == 2022 and doy < 25):
-        tensor = torch.from_numpy(dataCube.values).to(torch.float32) * 0.0001  # Scale 0-10000 to 0-1
-    else:
-        tensor = (torch.from_numpy(dataCube.values).to(torch.float32) * 0.0001) - 0.1   # Scale 0-10000 to 0-1
-        
-    tensor = tensor.unsqueeze(0)
 
+
+    match collection:
+        case "SENTINEL_2A":
+            if year < 2022 or (year == 2022 and doy < 25):
+                tensor = torch.from_numpy(dataCube.values).to(torch.float32) * 0.0001  # Scale 0-10000 to 0-1
+            else:
+                tensor = (torch.from_numpy(dataCube.values).to(torch.float32) * 0.0001) - 0.1   # Scale 0-10000 to 0-1
+        case "LANDSAT":
+            tensor = torch.from_numpy(dataCube.values).to(torch.float32)
+    
+    
+    tensor = tensor.unsqueeze(0)
     # Permute to Prithvi Order: (Batch, Channel, Time, Height, Width)
     # Current indices: 0=Batch, 1=Time, 2=Channel, 3=Height, 4=Width
     # Target indices:  0=Batch, 2=Channel, 1=Time, 3=Height, 4=Width
     tensor = tensor.permute(0, 2, 1, 3, 4)    
-    
     
     
     min_lon, min_lat, max_lon, max_lat = bbox
