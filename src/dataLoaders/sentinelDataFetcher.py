@@ -7,7 +7,8 @@ import pandas as pd
 URL = "https://planetarycomputer.microsoft.com/api/stac/v1"
 SENTINEL_2A = "sentinel-2-l2a"
 LANDSAT = "landsat-c2-l2"
-PRITHVI_BANDS = ["B02", "B03", "B04", "B8A", "B11", "B12"]
+SENTINEL_2A_BANDS = ["B02", "B03", "B04", "B8A", "B11", "B12"]
+LANDSAT_BANDS = ["blue", "green", "red", "nir08", "swir16", "swir22"]
 
 def pcAuthenticator(url=URL):
     """Used to authenticate and access the planetary computer STAC API."""
@@ -17,7 +18,7 @@ def pcAuthenticator(url=URL):
     )
     return catalog
 
-def searchSTAC(timeRange, bbox, catalog = pcAuthenticator(), collection = LANDSAT, cloudCoverThreshold=15, minCoverage=5, nImages = 3):
+def searchSTAC(timeRange, bbox, catalog = pcAuthenticator(), collection = LANDSAT, cloudCoverThreshold=15, minCoverage=20, nImages = 10):
     """Searches the STAC API for Sentinel-2 L2A images within the specified time range and bounding box.
     
     Args:
@@ -65,63 +66,8 @@ def searchSTAC(timeRange, bbox, catalog = pcAuthenticator(), collection = LANDSA
 
     return best_items
 
-def createLandsatDataCube(items, bbox, resolution=10):
-    """
-    Downloads and stitches Landsat 8/9 data.
-    - Native Resolution: 30m
-    - Scaling Formula: (DN * 2.75e-5) - 0.2
-    """
-    proj = items[0].properties["proj:code"]
-    espgCode = int(proj.split(":")[-1])
-    print(f"Using projection EPSG:{espgCode}")
-    
-    # 1. Define Landsat-Specific Assets (The 6 common bands)
-    landsat_bands = ["blue", "green", "red", "nir08", "swir16", "swir22"]
 
-    # 2. Calculate Representative Date (to fix the 1970 bug)
-    dates = sorted([i.datetime for i in items])
-    mid_date = dates[len(dates) // 2]
-    representative_timestamp = pd.Timestamp(mid_date)
-    print(f"Landsat Representative Date: {representative_timestamp.date()}")
-
-    # 3. Create Stack
-    # Note: We use epsg=4326 to match the Sentinel logic
-    stack = stackstac.stack(
-        items,
-        assets=landsat_bands,
-        bounds_latlon=bbox,
-        resolution=resolution,
-        epsg=espgCode, 
-        fill_value=0
-    )
-    
-    # 4. Convert to Float32
-    stack = stack.astype("float32")
-
-    # 5. Apply Landsat Collection 2 Scaling
-    # Formula: reflectance = (DN * 0.0000275) - 0.2
-    # We apply this to valid data only (not NaNs)
-    #stack = (stack * 0.0000275) - 0.2
-
-    # 6. Clip and Clean
-    # Landsat valid range is 0.0 to 1.0, but atmospheric correction 
-    # can sometimes result in slightly negative values or >1.0.
-    stack = stack.clip(0.0, 1.0)
-    
-    # 7. Mosaic (Median to remove clouds)
-    mosaic = stack.median(dim="time", keep_attrs=True)
-    mosaic = mosaic.fillna(0.0)
-
-    # 8. Re-attach Time
-    mosaic = mosaic.expand_dims(time=[representative_timestamp])
-
-    # 9. Compute
-    # (Optional) with ProgressBar():
-    mosaic = mosaic.compute()
-    
-    return mosaic
-
-def createDataCube(item, bbox, bands = PRITHVI_BANDS, resolution=10, compute = False):
+def createDataCube(item, bbox, collection = "LANDSAT", resolution=10, compute = False):
 
     proj = item[0].properties["proj:code"]
     espgCode = int(proj.split(":")[-1])
@@ -130,6 +76,12 @@ def createDataCube(item, bbox, bands = PRITHVI_BANDS, resolution=10, compute = F
     dates = sorted([i.datetime for i in item])
     representative_date = dates[len(dates) // 2]
     print(f"Mosaic Representative Date: {representative_date.date()}")
+
+    match collection:
+        case "LANDSAT":
+            bands = LANDSAT_BANDS
+        case "SENTINEL_2A":
+            bands = SENTINEL_2A_BANDS
 
     dataCube = stackstac.stack(
         item,

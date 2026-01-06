@@ -159,101 +159,29 @@ def stitchPipeline(bbox, batches, model="prithvi_eo_v2_tiny_tl", gridSize=14, ta
 
 # --- EXECUTION BLOCK ---
 if __name__ == "__main__":
+    """
     #bbox_giga_tx = [-97.670, 30.180, -97.565, 30.270]
     #date_before = "2020-05-01/2020-06-01"
     #date_after  = "2022-05-01/2022-06-01"
-
-    # Expanded Greater Austin Area (Intersects 4 Sentinel-2 Tiles)
-    # Dimensions: ~60km x 60km
-    # Istanbul New Airport (Arnavutköy), Turkey
-    # ~30km box covering the airport and surrounding forest
-    """
+    
     bbox_istanbul_airport = [28.600, 41.200, 28.900, 41.350]
 
     # Dates
     date_before = "2015-06-01/2015-08-01"  # Early Construction (Mostly Forest/Soil)
     date_after  = "2022-06-01/2022-08-01"  # Fully Operational (Concrete/Terminals)
-    
-    # East of Santa Cruz de la Sierra, Bolivia
-    # A large ~50km box to capture multiple "pinwheel" formations
-    bbox_bolivia_soy = [-62.600, -17.400, -62.150, -17.000]
-
-    # Dates (Dry Season to avoid clouds)
-    date_before = "2017-07-01/2017-08-01"
-    date_after  = "2023-07-01/2023-08-01"
-    
-    # Indus River Valley near Larkana, Sindh, Pakistan
-    # Spans roughly 40km x 35km
-    bbox_pakistan_floods = [68.050, 27.400, 68.450, 27.700]
-
-    # Dates
-    date_before = "2021-09-01/2021-10-01"  # Dry Season / Pre-Monsoon
-    date_after  = "2022-09-01/2022-10-01"  # Peak Flooding
-    
-    
-
-    # Tierra Blanca Mennonite Colony (Loreto, Peru)
-    # A massive, solid block of deforestation appearing deep in the jungle.
-    # Novo Progresso / Jamanxim National Forest Border (Pará, Brazil)
-    # The frontline of the BR-163 deforestation arc.
-    bbox_novo_progresso = [-55.60, -7.30, -55.40, -7.10]
-
-    # Dates
-    # Before: Pre-"Day of Fire" surge.
-    date_before = "2016-06-01/2016-07-01"
-
-    # After: Post-surge devastation.
-    date_after  = "2025-06-01/2025-07-01"   
-    
-
-    # East of Santa Cruz, Bolivia (The "Pinwheel" Frontiers)
-    # A larger 20km x 20km box to ensure you catch the full geometric shapes.
-    bbox_bolivia_pinwheel = [-62.650, -16.850, -62.450, -16.650]
-
-    # Dates (Dry Season is critical for Bolivia)
-    # Before: 2016 (Early expansion)
-    date_before = "2016-07-01/2016-08-01"
-
-    # After: 2021 (Mature massive clearings)
-    date_after  = "2021-07-01/2021-08-01"
-    
-
-    # Lund, Sweden (Centered on 55.6794, 13.1771)
-    # Approx 5km x 5km
-    # San Julián, Santa Cruz, Bolivia
-    bbox_bolivia = [-62.70, -17.00, -62.50, -16.80]
-
-    # Before: Mostly pristine forest (Landsat 5)
-    date_before = "1990-07-01/1990-09-01"
-
-    # After: Industrial agriculture (Landsat 9)
-    date_after  = "2023-07-01/2023-09-01"
-    
-        # Cumbre Vieja Lava Flow (La Palma, Canary Islands)
-    # Captures the main flow destroying Todoque and reaching the sea.
-    bbox_la_palma = [-17.940, 28.590, -17.860, 28.640]
-
-    # Before: Towns and Banana Plantations
-    date_before = "2020-05-01/2020-08-01"
-
-    # After: The Black Lava Scar
-    date_after  = "2022-05-01/2022-08-01"
     """
-    # Bounding Box (Settala/Milan, Italy)
-   # Bounding Box (Eagle Mountain, Utah)
-    # Bounding Box (Fredericia, Denmark)
-    # Google / AWS Data Center Cluster (New Albany, Ohio)
-    # Captures the massive construction along Beech Rd.
-    bbox = [31.50, 23.00, 31.90, 23.50]
-    date_before = "1998-01-01/1998-04-01"
-    date_after = "2002-01-01/2002-04-01"
-
+    
+   
+    bbox = [-121.20, 40.00, -121.00, 40.20]
+    date_before = "2020-06-01/2020-09-01"
+    date_after = "2021-10-01/2021-11-01"
+    
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     model = BACKBONE_REGISTRY.build("prithvi_eo_v2_tiny_tl", pretrained=True)
     model.to(device)
 
-    batches = fetchAndConvert(bbox, date_before, date_after, "LANDSAT")
+    batches = fetchAndConvert(bbox, date_before, date_after, "SENTINEL_2A")
 
     beforeRGB, afterRGB, changeMap = stitchPipeline(bbox, batches, model=model, overlapRatio=0.5)
     VisualizeComparison(beforeRGB, afterRGB, changeMap)

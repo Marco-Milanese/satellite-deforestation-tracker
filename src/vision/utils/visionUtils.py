@@ -15,15 +15,15 @@ def fetchAndConvert(bbox, beforeDates, afterDates, collection="LANDSAT"):
 
     match collection:
         case "LANDSAT":
-            beforeItem = createLandsatDataCube(searchSTAC(beforeDates, bbox, collection=LANDSAT), bbox)
-            afterItem = createLandsatDataCube(searchSTAC(afterDates, bbox, collection=LANDSAT), bbox)
+            beforeItem = createDataCube(searchSTAC(beforeDates, bbox, collection=LANDSAT), bbox)
+            afterItem = createDataCube(searchSTAC(afterDates, bbox, collection=LANDSAT), bbox)
             
             #Converting data to correct format for inference
             beforeBatch = cubeToPrithviFormatLandsat(beforeItem, bbox)
             afterBatch = cubeToPrithviFormatLandsat(afterItem, bbox)
         case "SENTINEL_2A":
-            beforeItem = createDataCube(searchSTAC(beforeDates, bbox, collection=SENTINEL_2A), bbox)
-            afterItem = createDataCube(searchSTAC(afterDates, bbox, collection=SENTINEL_2A), bbox)
+            beforeItem = createDataCube(searchSTAC(beforeDates, bbox, collection=SENTINEL_2A), bbox, collection="SENTINEL_2A")
+            afterItem = createDataCube(searchSTAC(afterDates, bbox, collection=SENTINEL_2A), bbox, collection="SENTINEL_2A")
                 
                 #Converting data to correct format for inference
             beforeBatch = cubeToPrithviFormat(beforeItem, bbox)
