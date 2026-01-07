@@ -22,25 +22,46 @@ def CosineSimilarityMap(before, after):
     return changeMap.unsqueeze(1)
 
 
-def stitchPipeline(bbox, batches, model="prithvi_eo_v2_tiny_tl", gridSize=14, targetSize=224, overlapRatio=0.5, chunkSize = 16):
+def stitchPipeline(bbox, batches, model="prithvi_eo_v2_tiny_tl", gridSize=14, targetSize=224, overlapRatio=0.5, chunkSize=16):
     """
-    Optimized pipeline for large satellite imagery using Fold/Unfold and Coordinate Interpolation.
+    Optimized pipeline with SHAPE SAFEGUARDS for multi-sensor/multi-year data.
     """
     print(f"Analysing area: [{bbox}]")
     
     beforeBatch = batches[0]
     afterBatch = batches[1]
     
-    #Extracting pixel values from batch
+    # Extracting pixel values
     beforePixelValues = beforeBatch["pixel_values"] 
     afterPixelValues = afterBatch["pixel_values"]
     
+    # 1. Capture Reference Dimensions from "Before" Image
     B, C, T, H, W = beforePixelValues.shape 
     device = beforePixelValues.device
+    print(f"Reference Image Shape: {H}x{W}")
 
-    print(f"Original Image Shape: {H}x{W}")
-    
-    #Calculate Stride and Padding
+    # --- FIX: SHAPE HARMONIZATION ---
+    # Check if "After" image matches "Before" image dimensions exactly
+    if afterPixelValues.shape[-2:] != (H, W):
+        print(f"Shape Mismatch Detected! Resizing 'After' image from {afterPixelValues.shape[-2:]} to {(H, W)}")
+        
+        # Collapse dimensions for interpolation: (B, C*T, H_old, W_old)
+        Ba, Ca, Ta, Ha, Wa = afterPixelValues.shape
+        afterFlat = afterPixelValues.view(Ba, Ca * Ta, Ha, Wa)
+        
+        # Interpolate to match Reference (H, W)
+        afterResized = F.interpolate(
+            afterFlat, 
+            size=(H, W), 
+            mode='bilinear', 
+            align_corners=False
+        )
+        
+        # Restore dimensions: (B, C, T, H, W)
+        afterPixelValues = afterResized.view(B, C, T, H, W)
+    # --------------------------------
+
+    # 2. Calculate Stride and Padding
     inverseOverlapRatio = 1 - overlapRatio
     inputStride = int(floor(targetSize * inverseOverlapRatio))
     scaleFactor = targetSize // gridSize
@@ -55,7 +76,8 @@ def stitchPipeline(bbox, batches, model="prithvi_eo_v2_tiny_tl", gridSize=14, ta
     hPadded, wPadded = beforePixelValues.shape[-2:]
     print(f"Padded Image Shape: {hPadded}x{wPadded} (Padding: H={padH}, W={padW})")
 
-    #Unfold Pixels (Create Tiles)
+    # 3. Unfold Pixels (Create Tiles)
+    # Now this is safe because both tensors are guaranteed to be hPadded x wPadded
     beforeReshaped = beforePixelValues.view(B, C * T, hPadded, wPadded)
     afterReshaped = afterPixelValues.view(B, C * T, hPadded, wPadded)
 
@@ -64,11 +86,13 @@ def stitchPipeline(bbox, batches, model="prithvi_eo_v2_tiny_tl", gridSize=14, ta
 
     patchesNumber = beforeUnfolded.shape[-1]
     
-    #Reshape: (Total_Tiles, C, T, H_tile, W_tile)
+    # ... (Rest of your function remains exactly the same) ...
+    
+    # Reshape: (Total_Tiles, C, T, H_tile, W_tile)
     beforeTiles = beforeUnfolded.transpose(1, 2).reshape(-1, C, T, targetSize, targetSize)
     afterTiles = afterUnfolded.transpose(1, 2).reshape(-1, C, T, targetSize, targetSize)
 
-    #Generate Correct Metadata (Lat/Lon) per Tile
+    # Generate Correct Metadata (Lat/Lon) per Tile
     nRows = (hPadded - targetSize) // inputStride + 1
     nCols = (wPadded - targetSize) // inputStride + 1
     
@@ -83,15 +107,15 @@ def stitchPipeline(bbox, batches, model="prithvi_eo_v2_tiny_tl", gridSize=14, ta
     
     if B > 1: locTiles = locTiles.repeat(B, 1)
 
-    #Extract temporal coords
+    # Extract temporal coords
     beforeTempCoords = beforeBatch["temporal_coords"]
     afterTempCoords = afterBatch["temporal_coords"]
     
-    #Repeat for every patch
+    # Repeat for every patch
     beforeTempTiles = beforeTempCoords.repeat_interleave(patchesNumber, dim=0)
     afterTempTiles = afterTempCoords.repeat_interleave(patchesNumber, dim=0)
 
-    #Batched Inference Loop
+    # Batched Inference Loop
     heatmapPatches = []
     totalTiles = beforeTiles.shape[0]
 
@@ -127,26 +151,25 @@ def stitchPipeline(bbox, batches, model="prithvi_eo_v2_tiny_tl", gridSize=14, ta
         
         heatmapPatches.append(changeMapChunk)
 
-    #Concatenate: (Total_Tiles, 1, 14, 14)
+    # Concatenate: (Total_Tiles, 1, 14, 14)
     allHeatmaps = torch.cat(heatmapPatches, dim=0)
 
-    #Stitching (Fold)
-    #Flatten tiles to (B, C*K*K, Num_Patches) -> (B, 1*14*14, N) -> (B, 196, N)
+    # Stitching (Fold)
     patchesToFold = allHeatmaps.view(B, patchesNumber, -1).transpose(1, 2)
 
     outH = hPadded // scaleFactor
     outW = wPadded // scaleFactor
     
-    #Fold Sum
+    # Fold Sum
     stitchedSum = F.fold(patchesToFold, output_size=(outH, outW), kernel_size=gridSize, stride=outputStride)
 
-    #Fold Count (for averaging)
+    # Fold Count
     onesPatches = torch.ones_like(patchesToFold)
     overlapCounter = F.fold(onesPatches, output_size=(outH, outW), kernel_size=gridSize, stride=outputStride)
     
     finalHeatmap = stitchedSum / (overlapCounter + 1e-8)
 
-    #Crop & Return
+    # Crop & Return
     validH = H // scaleFactor
     validW = W // scaleFactor
     finalHeatmap = finalHeatmap[:, :, :validH, :validW]
@@ -172,17 +195,26 @@ if __name__ == "__main__":
     """
     
    
-    bbox = [-16.30, 64.02, -16.10, 64.12]
-    date_before = "1993-07-01/1993-09-01"
-    date_after = "2023-07-01/2023-09-01"
+    # Lake Aculeo (Santiago, Chile)
+    # A tourist lake that turned into a dusty plain.
+    bbox_lake_aculeo = [-70.920, -33.850, -70.850, -33.800]
 
+    # Before: Water still present (Sentinel-2A Launch era)
+    date_before = "2016-01-01/2016-04-01"
+
+    # After: Completely Dry
+    date_after  = "2019-01-01/2019-04-01"
+
+    #bbox = [31.50, 23.00, 31.90, 23.50]
+    #date_before = "1998-01-01/1998-04-01"
+    #date_after = "2002-01-01/2002-04-01"
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     model = BACKBONE_REGISTRY.build("prithvi_eo_v2_tiny_tl", pretrained=True)
     model.to(device)
 
-    batches = fetchAndConvert(bbox, date_before, date_after, "LANDSAT")
+    batches = fetchAndConvert(bbox_lake_aculeo, date_before, date_after, "LANDSAT")
 
-    beforeRGB, afterRGB, changeMap = stitchPipeline(bbox, batches, model=model, overlapRatio=0.5)
+    beforeRGB, afterRGB, changeMap = stitchPipeline(bbox_lake_aculeo, batches, model=model, overlapRatio=0.5)
     VisualizeComparison(beforeRGB, afterRGB, changeMap)

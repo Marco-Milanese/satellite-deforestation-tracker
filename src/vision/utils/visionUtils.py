@@ -6,7 +6,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
 from dask.diagnostics import ProgressBar
-from src.dataLoaders.sentinelDataFetcher import createDataCube, createLandsatDataCube, searchSTAC
+from src.dataLoaders.sentinelDataFetcher import createDataCube, searchSTAC
 
 SENTINEL_2A = "sentinel-2-l2a"
 LANDSAT = "landsat-c2-l2"
@@ -15,12 +15,12 @@ def fetchAndConvert(bbox, beforeDates, afterDates, collection="LANDSAT"):
 
     match collection:
         case "LANDSAT":
-            beforeItem = createLandsatDataCube(searchSTAC(beforeDates, bbox, collection=LANDSAT), bbox)
-            afterItem = createLandsatDataCube(searchSTAC(afterDates, bbox, collection=LANDSAT), bbox)
+            beforeItem = createDataCube(searchSTAC(beforeDates, bbox, collection=LANDSAT), bbox)
+            afterItem = createDataCube(searchSTAC(afterDates, bbox, collection=LANDSAT), bbox)
             
             #Converting data to correct format for inference
-            beforeBatch = cubeToPrithviFormatLandsat(beforeItem, bbox)
-            afterBatch = cubeToPrithviFormatLandsat(afterItem, bbox)
+            beforeBatch = cubeToPrithviFormat(beforeItem, bbox)
+            afterBatch = cubeToPrithviFormat(afterItem, bbox)
         case "SENTINEL_2A":
             beforeItem = createDataCube(searchSTAC(beforeDates, bbox, collection=SENTINEL_2A), bbox, collection="SENTINEL_2A")
             afterItem = createDataCube(searchSTAC(afterDates, bbox, collection=SENTINEL_2A), bbox, collection="SENTINEL_2A")
@@ -31,59 +31,6 @@ def fetchAndConvert(bbox, beforeDates, afterDates, collection="LANDSAT"):
 
     return beforeBatch, afterBatch
 
-def cubeToPrithviFormatLandsat(dataCube, bbox):
-    """
-    Converts the Landsat DataCube into Prithvi / TerraTorch format.
-    Handles the specific Landsat Collection 2 scaling.
-    """
-    
-    # 1. Trigger Download (if lazy)
-    if hasattr(dataCube.data, 'dask'):
-        print(f"Downloading and stitching Landsat tiles for bbox: {bbox}...")
-        with ProgressBar():
-            computed_data = dataCube.compute() 
-    else:
-        computed_data = dataCube
-
-    # 2. Extract Temporal Coordinates
-    # We assume 'time' exists (restored via expand_dims in createDataCube)
-    date = pd.to_datetime(computed_data.time.values)
-    year = date.year
-    doy = date.dayofyear
-    
-    # Prithvi expects [Year, DOY]
-    # Note: We take the first element [-1] or [0] since it's a mosaic
-    temporal_coords = torch.Tensor([[[year[0], doy[0] - 1]]]) 
-    print(f"Landsat Date - DOY: {doy[0]}, Year: {year[0]}")
-
-    # 3. Convert to Tensor & Scale
-    # Landsat C2 L2 Formula: (DN * 0.0000275) - 0.2
-    tensor = torch.from_numpy(computed_data.values).to(torch.float32)
-    
-    # Apply scaling
-    #tensor = (tensor * 0.0000275) - 0.2
-    
-    # Clip to 0-1 range to handle valid range & artifacts
-    # (Landsat often has values < 0 due to atmospheric over-correction)
-    tensor = torch.clamp(tensor, min=0.0, max=1.0)
-        
-    tensor = tensor.unsqueeze(0)
-
-    # 4. Permute to Prithvi Order: (Batch, Channel, Time, Height, Width)
-    tensor = tensor.permute(0, 2, 1, 3, 4)    
-    
-    # 5. Extract Location Coordinates
-    min_lon, min_lat, max_lon, max_lat = bbox
-    center_lat = (min_lat + max_lat) / 2.0
-    center_lon = (min_lon + max_lon) / 2.0
-    
-    location_coords = torch.tensor([[center_lat, center_lon]], dtype=torch.float32)
-
-    return {
-        "pixel_values": tensor,           
-        "temporal_coords": temporal_coords,
-        "location_coords": location_coords
-    }
 
 def cubeToPrithviFormat(dataCube, bbox, collection = "LANDSAT"):
     """
